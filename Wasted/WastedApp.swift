@@ -1,17 +1,22 @@
-//
-//  WastedApp.swift
-//  Wasted
-//
-//  Created by PapaJi on 26/05/26.
-//
-
 import SwiftUI
 
 @main
 struct WastedApp: App {
+    @AppStorage("onboarding_complete") private var onboardingComplete = false
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            #if targetEnvironment(simulator)
+            HomeView()
+            #else
+            if onboardingComplete {
+                HomeView()
+            } else {
+                OnboardingContainerView {
+                    onboardingComplete = true
+                }
+            }
+            #endif
         }
     }
 }

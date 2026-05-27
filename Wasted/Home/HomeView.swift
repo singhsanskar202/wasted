@@ -1,50 +1,121 @@
+import Charts
 import FamilyControls
 import SwiftUI
 
 struct HomeView: View {
-    @State private var quote = QuoteBank.random
     @State private var selection = HomeView.loadSavedSelection()
     @State private var showingPicker = false
     @State private var hourlyData = UsageStore().loadTodayHourly()
     @State private var totalSeconds = UsageStore().totalSecondsAllApps()
+    @State private var appeared = false
+
+    private var timeString: String {
+        let h = totalSeconds / 3600
+        let m = (totalSeconds % 3600) / 60
+        if h > 0 { return "\(h)h \(m)m" }
+        if m > 0 { return "\(m)m" }
+        return "0m"
+    }
+
+    private var heatmapDaysLeft: Int {
+        let store = UsageStore()
+        // Count distinct days that have hourly data
+        guard let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID) else { return 7 }
+        let prefix = AppGroupKeys.hourlyUsageKeyPrefix
+        let daysRecorded = defaults.dictionaryRepresentation().keys
+            .filter { $0.hasPrefix(prefix) }
+            .count
+        return max(0, 7 - daysRecorded)
+    }
 
     var body: some View {
-        VStack(spacing: 0) {
-            Spacer()
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 0) {
 
-            Text(quote)
-                .font(.system(size: 18, weight: .light, design: .serif))
-                .italic()
-                .foregroundStyle(.white)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-                .onTapGesture {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        quote = QuoteBank.random
-                    }
+                // MARK: — Quote
+                Text(QuoteBank.todaysQuote)
+                    .font(.system(size: 15, weight: .light, design: .serif))
+                    .italic()
+                    .foregroundStyle(.white.opacity(0.35))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+                    .padding(.top, 72)
+                    .padding(.bottom, 60)
+
+                // MARK: — Big number
+                VStack(spacing: 6) {
+                    Text("you wasted")
+                        .font(.system(size: 14, weight: .light))
+                        .foregroundStyle(.white.opacity(0.35))
+                        .tracking(2)
+                        .textCase(.lowercase)
+
+                    Text(timeString)
+                        .font(.system(size: 72, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .contentTransition(.numericText())
+                        .opacity(appeared ? 1 : 0)
+                        .scaleEffect(appeared ? 1 : 0.85)
+                        .animation(.spring(duration: 0.6, bounce: 0.3).delay(0.1), value: appeared)
+
+                    Text("on your phone today")
+                        .font(.system(size: 14, weight: .light))
+                        .foregroundStyle(.white.opacity(0.35))
+                        .tracking(2)
+                        .textCase(.lowercase)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.bottom, 32)
+
+                // MARK: — Equivalent
+                if let eq = EquivalentTaskMapper.equivalent(for: totalSeconds) {
+                    Text("that's \(eq.description) \(eq.emoji)")
+                        .font(.system(size: 15, weight: .regular))
+                        .foregroundStyle(.orange.opacity(0.75))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
+                        .padding(.bottom, 60)
+                        .transition(.opacity)
                 }
 
-            Spacer()
+                // MARK: — Divider
+                Rectangle()
+                    .fill(Color.white.opacity(0.07))
+                    .frame(height: 1)
+                    .padding(.horizontal, 32)
+                    .padding(.bottom, 40)
 
-            Rectangle()
-                .fill(Color.white.opacity(0.1))
-                .frame(height: 1)
-                .padding(.horizontal, 24)
+                // MARK: — Heatmap or days-left
+                if heatmapDaysLeft == 0 && !hourlyData.hours.isEmpty {
+                    HeatmapView(hourlyData: hourlyData)
+                        .padding(.bottom, 40)
+                } else {
+                    PatternLockedView(daysLeft: heatmapDaysLeft)
+                        .padding(.horizontal, 32)
+                        .padding(.bottom, 40)
+                }
 
-            VStack(spacing: 0) {
+                // MARK: — Divider
+                Rectangle()
+                    .fill(Color.white.opacity(0.07))
+                    .frame(height: 1)
+                    .padding(.horizontal, 32)
+                    .padding(.bottom, 32)
+
+                // MARK: — Settings row
                 HStack {
-                    Text("Tracking")
-                        .font(.caption)
-                        .foregroundStyle(.gray)
-                        .textCase(.uppercase)
-                        .tracking(1)
+                    Text("tracking \(selection.applications.count) app\(selection.applications.count == 1 ? "" : "s")")
+                        .font(.system(size: 13, weight: .light))
+                        .foregroundStyle(.white.opacity(0.3))
+
                     Spacer()
+
                     Button {
                         showingPicker = true
                     } label: {
-                        Text("Edit")
-                            .font(.caption)
-                            .foregroundStyle(.gray)
+                        Text("edit")
+                            .font(.system(size: 13, weight: .light))
+                            .foregroundStyle(.white.opacity(0.3))
                     }
                     .familyActivityPicker(isPresented: $showingPicker, selection: $selection)
                     .onChange(of: selection) { _, newValue in
@@ -52,60 +123,27 @@ struct HomeView: View {
                         ActivityScheduler.shared.startMonitoring(selection: newValue)
                     }
                 }
-                .padding(.horizontal, 24)
-                .padding(.top, 20)
-                .padding(.bottom, 12)
-
-                if selection.applications.isEmpty {
-                    Text("No apps selected. Tap Edit.")
-                        .font(.subheadline)
-                        .foregroundStyle(.gray)
-                        .padding(.horizontal, 24)
-                        .padding(.bottom, 24)
-                } else {
-                    Text("\(selection.applications.count) app\(selection.applications.count == 1 ? "" : "s") tracked")
-                        .font(.subheadline)
-                        .foregroundStyle(.gray)
-                        .padding(.horizontal, 24)
-                        .padding(.bottom, 8)
-                }
-
-                if let eq = EquivalentTaskMapper.equivalent(for: totalSeconds) {
-                    Text("You could've \(eq.description) \(eq.emoji)")
-                        .font(.caption)
-                        .foregroundStyle(.orange.opacity(0.85))
-                        .padding(.horizontal, 24)
-                        .padding(.bottom, 20)
-                }
-            }
-
-            if !hourlyData.hours.isEmpty {
-                Rectangle()
-                    .fill(Color.white.opacity(0.1))
-                    .frame(height: 1)
-                    .padding(.horizontal, 24)
-
-                HeatmapView(hourlyData: hourlyData)
-                    .padding(.vertical, 16)
+                .padding(.horizontal, 32)
+                .padding(.bottom, 52)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black)
+        .background(Color.black.ignoresSafeArea())
         .onAppear {
             let store = UsageStore()
             hourlyData = store.loadTodayHourly()
             totalSeconds = store.totalSecondsAllApps()
+            appeared = true
         }
     }
+
+    // MARK: - Helpers
 
     private static func loadSavedSelection() -> FamilyActivitySelection {
         guard
             let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID),
             let data = defaults.data(forKey: AppGroupKeys.trackedSelectionKey),
             let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: data)
-        else {
-            return FamilyActivitySelection()
-        }
+        else { return FamilyActivitySelection() }
         return selection
     }
 
@@ -115,5 +153,37 @@ struct HomeView: View {
             let data = try? JSONEncoder().encode(selection)
         else { return }
         defaults.set(data, forKey: AppGroupKeys.trackedSelectionKey)
+    }
+}
+
+// MARK: - Pattern Locked View
+
+private struct PatternLockedView: View {
+    let daysLeft: Int
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Text("\(daysLeft)")
+                .font(.system(size: 48, weight: .bold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.15))
+
+            Text(daysLeft == 1 ? "day until your pattern unlocks" : "days until your pattern unlocks")
+                .font(.system(size: 13, weight: .light))
+                .foregroundStyle(.white.opacity(0.25))
+                .tracking(1)
+
+            // Ghost bars — progressive reveal
+            HStack(alignment: .bottom, spacing: 4) {
+                ForEach(0..<24, id: \.self) { i in
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color.white.opacity(i < (7 - daysLeft) * 3 ? 0.12 : 0.04))
+                        .frame(width: 10, height: CGFloat.random(in: 12...48))
+                }
+            }
+            .frame(height: 52)
+            .padding(.top, 8)
+        }
+        .frame(maxWidth: .infinity)
+        .multilineTextAlignment(.center)
     }
 }

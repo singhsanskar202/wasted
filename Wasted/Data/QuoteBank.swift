@@ -37,4 +37,10 @@ enum QuoteBank {
     static var random: String {
         quotes.randomElement() ?? quotes[0]
     }
+
+    // Same quote all day — changes at midnight
+    static var todaysQuote: String {
+        let day = Calendar.current.ordinality(of: .day, in: .era, for: Date()) ?? 0
+        return quotes[day % quotes.count]
+    }
 }

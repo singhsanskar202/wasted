@@ -72,7 +72,7 @@ final class ActivityScheduler: ObservableObject {
             let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID),
             let data = try? JSONEncoder().encode(names)
         else { return }
-        defaults.set(data, forKey: "display_names")
+        defaults.set(data, forKey: AppGroupKeys.displayNamesKey)
     }
 }
 

@@ -1,5 +1,7 @@
 import DeviceActivity
 import Foundation
+import UserNotifications
+import WidgetKit
 
 // The system wakes this extension when registered apps hit usage thresholds.
 // Event name format: "index:minutes" e.g. "0:60" — set by ActivityScheduler.
@@ -9,7 +11,10 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     let notificationScheduler = NotificationScheduler()
 
     override func intervalDidStart(for activity: DeviceActivityName) {
-        // New day started. UsageStore.loadTodayUsage() auto-creates fresh daily usage.
+        // New day started — reset badge.
+        Task {
+            try? await UNUserNotificationCenter.current().setBadgeCount(0)
+        }
     }
 
     override func intervalDidEnd(for activity: DeviceActivityName) {
@@ -32,8 +37,11 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         let appName = resolveDisplayName(for: appIndex)
 
         let current = store.loadTodayUsage().totalSeconds(for: appIndex)
-        if totalSeconds > current {
-            store.addSeconds(totalSeconds - current, for: appIndex)
+        let delta = totalSeconds > current ? totalSeconds - current : 0
+        if delta > 0 {
+            store.addSeconds(delta, for: appIndex)
+            let currentHour = Calendar.current.component(.hour, from: Date())
+            store.addSeconds(delta, toHour: currentHour)
         }
 
         liveActivityManager.startOrUpdate(
@@ -44,8 +52,20 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
 
         if minutes % 60 == 0 {
             let hours = minutes / 60
-            notificationScheduler.scheduleHourlyMilestone(appName: appName, hours: hours)
+            notificationScheduler.scheduleHourlyMilestone(
+                appName: appName,
+                hours: hours,
+                totalSeconds: store.totalSecondsAllApps()
+            )
         }
+
+        // Update badge with total tracked minutes today.
+        let totalMinutes = store.totalSecondsAllApps() / 60
+        Task {
+            try? await UNUserNotificationCenter.current().setBadgeCount(totalMinutes)
+        }
+
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     // MARK: - Private
@@ -53,7 +73,7 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     private func resolveDisplayName(for index: String) -> String {
         guard
             let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID),
-            let data = defaults.data(forKey: "display_names"),
+            let data = defaults.data(forKey: AppGroupKeys.displayNamesKey),
             let names = try? JSONDecoder().decode([String: String].self, from: data)
         else { return "App \(index)" }
         return names[index] ?? "App \(index)"

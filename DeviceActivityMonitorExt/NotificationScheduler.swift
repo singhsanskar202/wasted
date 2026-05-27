@@ -27,15 +27,22 @@ final class NotificationScheduler {
         "%d hours on %@. You're aware now."
     ]
 
-    func scheduleHourlyMilestone(appName: String, hours: Int) {
+    func scheduleHourlyMilestone(appName: String, hours: Int, totalSeconds: Int = 0) {
         let variants = Self.messages[hours] ?? Self.defaultMessages
         let template = variants.randomElement()!
 
-        let body: String
+        let base: String
         if template.contains("%d") {
-            body = String(format: template, appName, hours)
+            base = String(format: template, appName, hours)
         } else {
-            body = String(format: template, appName)
+            base = String(format: template, appName)
+        }
+
+        let body: String
+        if let eq = EquivalentTaskMapper.equivalent(for: totalSeconds) {
+            body = "\(base) That's \(eq.description) \(eq.emoji)."
+        } else {
+            body = base
         }
 
         let content = UNMutableNotificationContent()

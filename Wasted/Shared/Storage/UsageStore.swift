@@ -53,4 +53,8 @@ final class UsageStore {
         guard ti > 0 else { return nil }
         return Date(timeIntervalSince1970: ti)
     }
+
+    func totalSecondsAllApps() -> Int {
+        loadTodayUsage().seconds.values.reduce(0, +)
+    }
 }

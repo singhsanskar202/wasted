@@ -5,6 +5,8 @@ struct HomeView: View {
     @State private var quote = QuoteBank.random
     @State private var selection = HomeView.loadSavedSelection()
     @State private var showingPicker = false
+    @State private var hourlyData = UsageStore().loadTodayHourly()
+    @State private var totalSeconds = UsageStore().totalSecondsAllApps()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -65,12 +67,35 @@ struct HomeView: View {
                         .font(.subheadline)
                         .foregroundStyle(.gray)
                         .padding(.horizontal, 24)
-                        .padding(.bottom, 24)
+                        .padding(.bottom, 8)
                 }
+
+                if let eq = EquivalentTaskMapper.equivalent(for: totalSeconds) {
+                    Text("You could've \(eq.description) \(eq.emoji)")
+                        .font(.caption)
+                        .foregroundStyle(.orange.opacity(0.85))
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 20)
+                }
+            }
+
+            if !hourlyData.hours.isEmpty {
+                Rectangle()
+                    .fill(Color.white.opacity(0.1))
+                    .frame(height: 1)
+                    .padding(.horizontal, 24)
+
+                HeatmapView(hourlyData: hourlyData)
+                    .padding(.vertical, 16)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.black)
+        .onAppear {
+            let store = UsageStore()
+            hourlyData = store.loadTodayHourly()
+            totalSeconds = store.totalSecondsAllApps()
+        }
     }
 
     private static func loadSavedSelection() -> FamilyActivitySelection {

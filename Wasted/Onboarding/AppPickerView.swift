@@ -45,7 +45,6 @@ struct AppPickerView: View {
                     .familyActivityPicker(isPresented: $showingPicker, selection: $selection)
 
                     Button {
-                        saveIcons(for: selection)
                         onSelected(selection)
                     } label: {
                         Text("i'm ready")
@@ -64,38 +63,4 @@ struct AppPickerView: View {
         }
     }
 
-    // Renders each selected app's Label to PNG and saves to App Group keyed by display name.
-    // Display name matches context.attributes.appName in the Live Activity extension.
-    @MainActor
-    private func saveIcons(for selection: FamilyActivitySelection) {
-        guard let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID) else { return }
-
-        for token in selection.applicationTokens {
-            let label = Label(token)
-            guard let appName = label.extractedTitle, !appName.isEmpty else { continue }
-            let renderer = ImageRenderer(content: label.frame(width: 60, height: 60))
-            renderer.scale = 2.0
-            guard let uiImage = renderer.uiImage, let pngData = uiImage.pngData() else { continue }
-            defaults.set(pngData, forKey: AppGroupKeys.appIconKey(for: appName))
-        }
-    }
-}
-
-private extension Label where Title == Text, Icon == Image {
-    // Parses SwiftUI Text's debug description to extract the string value.
-    // This relies on an undocumented format ("Text(\"…\")") and may break
-    // if Apple changes Text's internal representation. Falls back gracefully
-    // (returns nil) — callers should handle nil via the letter-circle fallback.
-    var extractedTitle: String? {
-        let mirror = Mirror(reflecting: self)
-        for child in mirror.children {
-            if let text = child.value as? Text {
-                let desc = "\(text)"
-                if desc.hasPrefix("Text(\"") && desc.hasSuffix("\")") {
-                    return String(desc.dropFirst(6).dropLast(2))
-                }
-            }
-        }
-        return nil
-    }
 }

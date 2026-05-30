@@ -11,13 +11,19 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     let notificationScheduler = NotificationScheduler()
 
     override func intervalDidStart(for activity: DeviceActivityName) {
-        // New day started — reset badge.
+        // New day — reset badge and increment days-tracked counter
         Task {
             try? await UNUserNotificationCenter.current().setBadgeCount(0)
         }
+        guard let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID) else { return }
+        let count = defaults.integer(forKey: AppGroupKeys.daysTrackedKey)
+        defaults.set(count + 1, forKey: AppGroupKeys.daysTrackedKey)
     }
 
     override func intervalDidEnd(for activity: DeviceActivityName) {
+        // Archive completed day into history before clearing
+        let today = store.loadTodayUsage()
+        store.archiveToHistory(today)
         liveActivityManager.endAllActivities()
         store.clearActiveApp()
     }
@@ -42,6 +48,7 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             store.addSeconds(delta, for: appIndex)
             let currentHour = Calendar.current.component(.hour, from: Date())
             store.addSeconds(delta, toHour: currentHour)
+            store.addHourlySeconds(delta)
         }
 
         liveActivityManager.startOrUpdate(
@@ -59,7 +66,6 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             )
         }
 
-        // Update badge with total tracked minutes today.
         let totalMinutes = store.totalSecondsAllApps() / 60
         Task {
             try? await UNUserNotificationCenter.current().setBadgeCount(totalMinutes)

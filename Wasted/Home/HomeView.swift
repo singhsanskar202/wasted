@@ -8,6 +8,9 @@ struct HomeView: View {
     @State private var hourlyData = UsageStore().loadTodayHourly()
     @State private var totalSeconds = UsageStore().totalSecondsAllApps()
     @State private var appeared = false
+    @State private var insightResult: InsightResult? = nil
+
+    private let store = UsageStore()
 
     private var timeString: String {
         let h = totalSeconds / 3600
@@ -18,8 +21,6 @@ struct HomeView: View {
     }
 
     private var heatmapDaysLeft: Int {
-        let store = UsageStore()
-        // Count distinct days that have hourly data
         guard let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID) else { return 7 }
         let prefix = AppGroupKeys.hourlyUsageKeyPrefix
         let daysRecorded = defaults.dictionaryRepresentation().keys
@@ -95,6 +96,19 @@ struct HomeView: View {
                         .padding(.bottom, 40)
                 }
 
+                // MARK: — Danger Zones + Weekly insight
+                if let result = insightResult {
+                    DangerZonesCard(result: result)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 16)
+
+                    if let weekly = result.weekly {
+                        WeeklyCard(weekly: weekly)
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 40)
+                    }
+                }
+
                 // MARK: — Divider
                 Rectangle()
                     .fill(Color.white.opacity(0.07))
@@ -129,11 +143,30 @@ struct HomeView: View {
         }
         .background(Color.black.ignoresSafeArea())
         .onAppear {
-            let store = UsageStore()
             hourlyData = store.loadTodayHourly()
             totalSeconds = store.totalSecondsAllApps()
             appeared = true
+            loadInsight()
         }
+    }
+
+    // MARK: - Insight
+
+    private func loadInsight() {
+        let today = store.loadTodayUsage()
+        let yesterday = store.loadYesterday()
+        let history = store.loadHistory()
+
+        var names: [String: String] = [:]
+        if let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID),
+           let data = defaults.data(forKey: AppGroupKeys.displayNamesKey),
+           let decoded = try? JSONDecoder().decode([String: String].self, from: data) {
+            names = decoded
+        }
+
+        insightResult = InsightEngine.analyze(
+            today: today, yesterday: yesterday, history: history, displayNames: names
+        )
     }
 
     // MARK: - Helpers

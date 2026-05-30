@@ -7,7 +7,7 @@ final class UsageStore {
         self.defaults = defaults
     }
 
-    // MARK: - Daily Usage
+    // MARK: - Today
 
     func loadTodayUsage() -> DailyUsage {
         let today = DailyUsage.todayString()
@@ -32,6 +32,46 @@ final class UsageStore {
         save(usage)
     }
 
+    func totalSecondsAllApps() -> Int {
+        loadTodayUsage().seconds.values.reduce(0, +)
+    }
+
+    // MARK: - Hourly (DailyUsage.hourly[] slot)
+
+    func addHourlySeconds(_ value: Int) {
+        let hour = Calendar.current.component(.hour, from: Date())
+        var usage = loadTodayUsage()
+        usage.addHourly(value, hour: hour)
+        save(usage)
+    }
+
+    // MARK: - History (last 7 days, excluding today)
+
+    func archiveToHistory(_ usage: DailyUsage) {
+        var history = loadHistory()
+        history.removeAll { $0.date == usage.date }
+        history.append(usage)
+        if history.count > 7 {
+            history = Array(history.sorted { $0.date < $1.date }.suffix(7))
+        }
+        guard let data = try? JSONEncoder().encode(history) else { return }
+        defaults.set(data, forKey: AppGroupKeys.historyKey)
+    }
+
+    func loadHistory() -> [DailyUsage] {
+        guard
+            let data = defaults.data(forKey: AppGroupKeys.historyKey),
+            let history = try? JSONDecoder().decode([DailyUsage].self, from: data)
+        else { return [] }
+        return history.sorted { $0.date < $1.date }
+    }
+
+    func loadYesterday() -> DailyUsage? {
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())
+            .map { DailyUsage.dateString(from: $0) } ?? ""
+        return loadHistory().first { $0.date == yesterday }
+    }
+
     // MARK: - Active Session
 
     func setActiveApp(bundleId: String, sessionStart: Date) {
@@ -52,9 +92,5 @@ final class UsageStore {
         let ti = defaults.double(forKey: AppGroupKeys.activeSessionStartKey)
         guard ti > 0 else { return nil }
         return Date(timeIntervalSince1970: ti)
-    }
-
-    func totalSecondsAllApps() -> Int {
-        loadTodayUsage().seconds.values.reduce(0, +)
     }
 }

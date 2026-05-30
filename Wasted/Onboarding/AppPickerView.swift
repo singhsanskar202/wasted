@@ -45,6 +45,7 @@ struct AppPickerView: View {
                     .familyActivityPicker(isPresented: $showingPicker, selection: $selection)
 
                     Button {
+                        saveIcons(for: selection)
                         onSelected(selection)
                     } label: {
                         Text("i'm ready")
@@ -61,5 +62,60 @@ struct AppPickerView: View {
                 .padding(.bottom, 52)
             }
         }
+    }
+
+    // Renders each selected app's Label to PNG and saves to App Group keyed by display name.
+    // Display name matches context.attributes.appName in the Live Activity extension.
+    @MainActor
+    private func saveIcons(for selection: FamilyActivitySelection) {
+        guard let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID) else { return }
+
+        // Load existing display names dict if available (populated by DeviceActivityMonitorExtension).
+        // At first onboarding this will be empty — we fall back to Mirror extraction from the Label.
+        var knownNames: [String: String] = [:]
+        if let data = defaults.data(forKey: AppGroupKeys.displayNamesKey),
+           let decoded = try? JSONDecoder().decode([String: String].self, from: data) {
+            knownNames = decoded
+        }
+
+        for (index, token) in selection.applicationTokens.enumerated() {
+            let label = Label(token)
+            let renderer = ImageRenderer(content: label.frame(width: 60, height: 60))
+            renderer.scale = 2.0
+            guard let uiImage = renderer.uiImage,
+                  let pngData = uiImage.pngData() else { continue }
+
+            let appName: String
+            if let mirrorName = label.extractedTitle, !mirrorName.isEmpty {
+                appName = mirrorName
+            } else if let dictName = knownNames.values.sorted()[safe: index] {
+                appName = dictName
+            } else {
+                continue
+            }
+
+            defaults.set(pngData, forKey: AppGroupKeys.appIconKey(for: appName))
+        }
+    }
+}
+
+private extension Label where Title == Text, Icon == Image {
+    var extractedTitle: String? {
+        let mirror = Mirror(reflecting: self)
+        for child in mirror.children {
+            if let text = child.value as? Text {
+                let desc = "\(text)"
+                if desc.hasPrefix("Text(\"") && desc.hasSuffix("\")") {
+                    return String(desc.dropFirst(6).dropLast(2))
+                }
+            }
+        }
+        return nil
+    }
+}
+
+private extension Collection {
+    subscript(safe index: Index) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
 }

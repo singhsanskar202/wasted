@@ -46,8 +46,6 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         let delta = totalSeconds > current ? totalSeconds - current : 0
         if delta > 0 {
             store.addSeconds(delta, for: appIndex)
-            let currentHour = Calendar.current.component(.hour, from: Date())
-            store.addSeconds(delta, toHour: currentHour)
             store.addHourlySeconds(delta)
         }
 

@@ -38,12 +38,7 @@ final class NotificationScheduler {
             base = String(format: template, appName)
         }
 
-        let body: String
-        if let eq = EquivalentTaskMapper.equivalent(for: totalSeconds) {
-            body = "\(base) That's \(eq.description) \(eq.emoji)."
-        } else {
-            body = base
-        }
+        let body = base
 
         let content = UNMutableNotificationContent()
         content.title = "\(hours)h on \(appName)"

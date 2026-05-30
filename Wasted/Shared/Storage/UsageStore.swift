@@ -1,7 +1,7 @@
 import Foundation
 
 final class UsageStore {
-    private let defaults: UserDefaults
+    let defaults: UserDefaults
 
     init(defaults: UserDefaults = UserDefaults(suiteName: AppGroupKeys.appGroupID)!) {
         self.defaults = defaults

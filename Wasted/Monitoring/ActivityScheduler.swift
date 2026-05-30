@@ -3,6 +3,7 @@ import DeviceActivity
 import FamilyControls
 import Foundation
 import ManagedSettings
+import SwiftUI
 
 @MainActor
 final class ActivityScheduler: ObservableObject {
@@ -37,6 +38,7 @@ final class ActivityScheduler: ObservableObject {
             displayNames["\(index)"] = token.localizedDisplayName ?? "App \(index)"
         }
         storeDisplayNames(displayNames)
+        saveIcons(for: tokens)
 
         var events: [DeviceActivityEvent.Name: DeviceActivityEvent] = [:]
         let thresholds = Array(stride(from: 5, through: 480, by: 5))
@@ -66,6 +68,21 @@ final class ActivityScheduler: ObservableObject {
     }
 
     // MARK: - Private
+
+    private func saveIcons(for apps: [Application]) {
+        guard let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID) else { return }
+        for app in apps {
+            guard let token = app.token,
+                  let name = app.localizedDisplayName,
+                  !name.isEmpty else { continue }
+            let label = Label(token)
+            let renderer = ImageRenderer(content: label.frame(width: 60, height: 60))
+            renderer.scale = 2.0
+            guard let uiImage = renderer.uiImage,
+                  let pngData = uiImage.pngData() else { continue }
+            defaults.set(pngData, forKey: AppGroupKeys.appIconKey(for: name))
+        }
+    }
 
     private func storeDisplayNames(_ names: [String: String]) {
         guard

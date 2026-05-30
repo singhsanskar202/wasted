@@ -68,7 +68,7 @@ private struct AppIconView: View {
                 .clipShape(RoundedRectangle(cornerRadius: size * 0.23))
         } else {
             ZStack {
-                Circle()
+                RoundedRectangle(cornerRadius: size * 0.23)
                     .fill(Color.white.opacity(0.2))
                     .frame(width: size, height: size)
                 Text(String(appName.prefix(1)).uppercased())
@@ -101,9 +101,11 @@ private struct LockScreenBannerView: View {
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(isAtLeast1Hour ? .red : Color.white.opacity(0.75))
 
-                Text("\(text) you won't get back.")
-                    .font(.caption)
-                    .foregroundStyle(Color.white.opacity(0.5))
+                if text != "0m" {
+                    Text("\(text) you won't get back.")
+                        .font(.caption)
+                        .foregroundStyle(Color.white.opacity(0.5))
+                }
             }
         }
         .padding()

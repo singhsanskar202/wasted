@@ -10,9 +10,7 @@ struct TimeTrackerWidget: Widget {
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     HStack(spacing: 8) {
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(Color.white.opacity(0.3))
-                            .frame(width: 28, height: 28)
+                        AppIconView(appName: context.attributes.appName, size: 28)
                         Text(context.attributes.appName)
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(.white)
@@ -20,54 +18,92 @@ struct TimeTrackerWidget: Widget {
                     .padding(.leading, 8)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    TotalTimeView(accumulatedStart: context.state.accumulatedStart)
+                    let (text, isAtLeast1Hour) = AppGroupKeys.formattedTime(from: context.state.accumulatedStart)
+                    Text(text)
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(isAtLeast1Hour ? .red : Color.white.opacity(0.75))
                         .padding(.trailing, 8)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    Text("Today")
+                    Text("today")
                         .font(.system(size: 11))
                         .foregroundStyle(.gray)
                         .padding(.bottom, 4)
                 }
             } compactLeading: {
-                RoundedRectangle(cornerRadius: 5)
-                    .fill(Color.white.opacity(0.3))
-                    .frame(width: 20, height: 20)
+                AppIconView(appName: context.attributes.appName, size: 22)
+                    .padding(.leading, 4)
             } compactTrailing: {
-                TotalTimeView(accumulatedStart: context.state.accumulatedStart)
+                let (text, isAtLeast1Hour) = AppGroupKeys.formattedTime(from: context.state.accumulatedStart)
+                Text(text)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(isAtLeast1Hour ? .red : Color.white.opacity(0.75))
+                    .padding(.trailing, 4)
             } minimal: {
-                RoundedRectangle(cornerRadius: 5)
-                    .fill(Color.white.opacity(0.3))
-                    .frame(width: 16, height: 16)
+                AppIconView(appName: context.attributes.appName, size: 16)
             }
         }
     }
 }
 
-private struct TotalTimeView: View {
-    let accumulatedStart: Date
+// MARK: - App Icon View
+
+private struct AppIconView: View {
+    let appName: String
+    let size: CGFloat
+
+    private var storedIcon: UIImage? {
+        guard let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID),
+              let data = defaults.data(forKey: AppGroupKeys.appIconKey(for: appName)) else { return nil }
+        return UIImage(data: data)
+    }
 
     var body: some View {
-        Text(accumulatedStart, style: .timer)
-            .font(.system(size: 13, weight: .semibold, design: .monospaced))
-            .foregroundStyle(.red)
-            .monospacedDigit()
+        if let icon = storedIcon {
+            Image(uiImage: icon)
+                .resizable()
+                .scaledToFill()
+                .frame(width: size, height: size)
+                .clipShape(RoundedRectangle(cornerRadius: size * 0.23))
+        } else {
+            ZStack {
+                Circle()
+                    .fill(Color.white.opacity(0.2))
+                    .frame(width: size, height: size)
+                Text(String(appName.prefix(1)).uppercased())
+                    .font(.system(size: size * 0.45, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+        }
     }
 }
+
+// MARK: - Lock Screen Banner
 
 private struct LockScreenBannerView: View {
     let context: ActivityViewContext<TimeTrackerAttributes>
 
     var body: some View {
-        HStack {
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color.white.opacity(0.3))
-                .frame(width: 32, height: 32)
+        let (text, isAtLeast1Hour) = AppGroupKeys.formattedTime(from: context.state.accumulatedStart)
+
+        HStack(spacing: 12) {
+            AppIconView(appName: context.attributes.appName, size: 32)
+
             Text(context.attributes.appName)
                 .font(.headline)
                 .foregroundStyle(.white)
+
             Spacer()
-            TotalTimeView(accumulatedStart: context.state.accumulatedStart)
+
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(text)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(isAtLeast1Hour ? .red : Color.white.opacity(0.75))
+
+                Text("\(text) you won't get back.")
+                    .font(.caption)
+                    .foregroundStyle(Color.white.opacity(0.5))
+            }
         }
         .padding()
         .background(Color.black)

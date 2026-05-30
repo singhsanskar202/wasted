@@ -14,4 +14,16 @@ enum AppGroupKeys {
     static func hourlyUsageKey(for date: String) -> String {
         "\(hourlyUsageKeyPrefix)\(date)"
     }
+
+    static func appIconKey(for appName: String) -> String {
+        "app_icon_\(appName)"
+    }
+
+    static func formattedTime(from accumulatedStart: Date) -> (text: String, isOver1Hour: Bool) {
+        let seconds = Int(Date().timeIntervalSince(accumulatedStart))
+        let h = seconds / 3600
+        let m = (seconds % 3600) / 60
+        if h > 0 { return ("\(h)h \(m)m", true) }
+        return ("\(m)m", false)
+    }
 }

@@ -70,29 +70,14 @@ struct AppPickerView: View {
     private func saveIcons(for selection: FamilyActivitySelection) {
         guard let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID) else { return }
 
-        // Load existing display names dict if available (populated by DeviceActivityMonitorExtension).
-        // At first onboarding this will be empty — we fall back to Mirror extraction from the Label.
-        var knownNames: [String: String] = [:]
-        if let data = defaults.data(forKey: AppGroupKeys.displayNamesKey),
-           let decoded = try? JSONDecoder().decode([String: String].self, from: data) {
-            knownNames = decoded
-        }
-
-        for (index, token) in selection.applicationTokens.enumerated() {
+        for token in selection.applicationTokens {
             let label = Label(token)
             let renderer = ImageRenderer(content: label.frame(width: 60, height: 60))
             renderer.scale = 2.0
             guard let uiImage = renderer.uiImage,
-                  let pngData = uiImage.pngData() else { continue }
-
-            let appName: String
-            if let mirrorName = label.extractedTitle, !mirrorName.isEmpty {
-                appName = mirrorName
-            } else if let dictName = knownNames.values.sorted()[safe: index] {
-                appName = dictName
-            } else {
-                continue
-            }
+                  let pngData = uiImage.pngData(),
+                  let appName = label.extractedTitle,
+                  !appName.isEmpty else { continue }
 
             defaults.set(pngData, forKey: AppGroupKeys.appIconKey(for: appName))
         }
@@ -111,11 +96,5 @@ private extension Label where Title == Text, Icon == Image {
             }
         }
         return nil
-    }
-}
-
-private extension Collection {
-    subscript(safe index: Index) -> Element? {
-        indices.contains(index) ? self[index] : nil
     }
 }

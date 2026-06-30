@@ -1,6 +1,6 @@
 ---
 name: project-wasted
-description: Wasted — iOS screen time awareness app. 32 tests pass. Pushed to github.com/singhsanskar202/wasted. HomeView + InsightEngine + DangerZonesCard + WeeklyCard shipped this session.
+description: Wasted — iOS screen time awareness app. Builds on Xcode 26.6 / iOS 26.5 sim, 37 tests pass. Pushed to github.com/singhsanskar202/wasted. Hourly-storage consolidated into DailyUsage.hourly[]; build + test-scheme fixed 2026-06-30.
 metadata: 
   node_type: memory
   type: project
@@ -16,15 +16,17 @@ metadata:
 
 ---
 
-## Current state (2026-05-30)
+## Current state (2026-06-30)
 
-**Tests:** 32/32 pass (added 17 InsightEngine tests this session).
+**Builds clean** on Xcode 26.6, iOS 26.5 simulator (iPhone 17 Pro). **Tests: 37/37 pass.**
+
+> Note: if `xcodebuild` reports "CoreSimulator is out of date" (version mismatch), running any `xcrun simctl` command reloads the stale service and clears it; a Mac restart also fixes it.
 
 **Architecture — 4 Xcode targets:**
 - `Wasted` (main app): Onboarding (5 screens), HomeView, InsightEngine, ActivityScheduler
 - `DeviceActivityMonitorExt`: DeviceActivityMonitorExtension, LiveActivityManager, NotificationScheduler
 - `LiveActivityExt`: Widget extension for Dynamic Island
-- `WastedTests`: 32 unit tests
+- `WastedTests`: 37 unit tests (wired into the `Wasted` scheme's TestAction — run via `xcodebuild -scheme Wasted test`)
 
 **Key identifiers:**
 - Bundle ID: `com.sanskar.Wasted`
@@ -99,9 +101,10 @@ Thresholds: low=5min, moderate=30min, danger=60min per hour slot.
 - `ApplicationToken.bundleIdentifier` is private — event names use `"appIndex:minutes"` format
 - `Application.token` is `ApplicationToken?` — always guard-unwrap
 - `accumulatedStart = Date() - totalSeconds` makes SwiftUI `.timer` style tick live
-- `UsageStore+Hourly.swift` (HourlyUsage model) is **main app target only** — extension can't use `addSeconds(_:toHour:)`. Extension uses `addHourlySeconds` from `UsageStore.swift` instead.
+- **Hourly storage (refactored 2026-06-30):** `UsageStore+Hourly.swift` and the old `hourly_usage_<date>` App Group keys are GONE. `HourlyUsage` now lives in `Wasted/Shared/Models/HourlyUsage.swift`; `UsageStore.loadTodayHourly()` derives a `HourlyUsage` from the `DailyUsage.hourly[24]` array (single source of truth). `HomeView.heatmapDaysLeft` now uses `store.loadHistory().count`.
+- **Target membership matters with synchronized groups:** `UsageStore.swift` is compiled into `DeviceActivityMonitorExt`, so any type it references must also be in that target. `HourlyUsage.swift` had to be added to the ext's `membershipExceptions` in `project.pbxproj` or the ext fails with "cannot find type 'HourlyUsage'". (The dead `hourlyUsageKey`/`hourlyUsageKeyPrefix` helpers still linger in `AppGroupKeys.swift` — harmless, safe to delete later.)
 - `EquivalentTaskMapper` is **main app target only** — removed from `NotificationScheduler` (extension target)
-- `UsageStore.defaults` must be `internal` (not `private`) so `UsageStore+Hourly` extension file can access it
+- `UsageStore.defaults` must be `internal` (not `private`) so shared extension files can access it
 - `CODE_SIGNING_REQUIRED = NO` on DeviceActivityMonitorExt for free developer account
 - `#if targetEnvironment(simulator)` in `WastedApp.swift` bypasses onboarding on simulator
 

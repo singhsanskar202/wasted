@@ -84,6 +84,7 @@
 				Shared/LiveActivity/TimeTrackerAttributes.swift,
 				Shared/Models/AppGroupKeys.swift,
 				Shared/Models/DailyUsage.swift,
+				Shared/Models/HourlyUsage.swift,
 				Shared/Storage/UsageStore.swift,
 			);
 			target = 6953D9952FC5D31200D38AF0 /* DeviceActivityMonitorExt */;

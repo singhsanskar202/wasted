@@ -25,3 +25,6 @@ Pods/
 .DS_Store
 .AppleDouble
 .LSOverride
+
+# Agent tooling
+.superpowers/

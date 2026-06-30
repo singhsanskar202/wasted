@@ -21,12 +21,7 @@ struct HomeView: View {
     }
 
     private var heatmapDaysLeft: Int {
-        guard let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID) else { return 7 }
-        let prefix = AppGroupKeys.hourlyUsageKeyPrefix
-        let daysRecorded = defaults.dictionaryRepresentation().keys
-            .filter { $0.hasPrefix(prefix) }
-            .count
-        return max(0, 7 - daysRecorded)
+        max(0, 7 - store.loadHistory().count)
     }
 
     var body: some View {

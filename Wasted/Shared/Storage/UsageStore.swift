@@ -36,7 +36,16 @@ final class UsageStore {
         loadTodayUsage().seconds.values.reduce(0, +)
     }
 
-    // MARK: - Hourly (DailyUsage.hourly[] slot)
+    // MARK: - Hourly
+
+    func loadTodayHourly() -> HourlyUsage {
+        let usage = loadTodayUsage()
+        var hourly = HourlyUsage(date: usage.date)
+        for (hour, seconds) in usage.hourly.enumerated() where seconds > 0 {
+            hourly.add(seconds: seconds, toHour: hour)
+        }
+        return hourly
+    }
 
     func addHourlySeconds(_ value: Int) {
         let hour = Calendar.current.component(.hour, from: Date())

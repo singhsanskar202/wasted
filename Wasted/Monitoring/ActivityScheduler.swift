@@ -25,6 +25,8 @@ final class ActivityScheduler: ObservableObject {
     // Call this whenever the user's FamilyActivitySelection changes.
     // ApplicationToken.bundleIdentifier is private in Apple's API —
     // we use a stable sequential index as the event key instead.
+    // Tracked-app count is deliberately unbounded; a future paywall would gate
+    // selection size here.
     func startMonitoring(selection: FamilyActivitySelection) {
         center.stopMonitoring()
         guard !selection.applications.isEmpty else { return }

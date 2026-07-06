@@ -1,23 +1,25 @@
 import FamilyControls
 import SwiftUI
 
+// Screen Time permission sits before the app picker by necessity:
+// familyActivityPicker can't list apps until FamilyControls auth is granted.
 struct OnboardingContainerView: View {
     @State private var step = 0
     let onComplete: () -> Void
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            Color.canvas.ignoresSafeArea()
 
             switch step {
             case 0:
                 HookView { advance() }
                     .transition(.opacity)
             case 1:
-                PermissionView { advance() }
+                DifferentiationView { advance() }
                     .transition(.opacity)
             case 2:
-                NotificationPermissionView { advance() }
+                PermissionView { advance() }
                     .transition(.opacity)
             case 3:
                 AppPickerView { selection in
@@ -25,6 +27,9 @@ struct OnboardingContainerView: View {
                     advance()
                 }
                 .transition(.opacity)
+            case 4:
+                NotificationPermissionView { advance() }
+                    .transition(.opacity)
             default:
                 DoneView { onComplete() }
                     .transition(.opacity)

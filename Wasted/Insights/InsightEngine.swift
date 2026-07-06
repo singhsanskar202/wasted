@@ -25,6 +25,13 @@ struct WeeklyInsight: Equatable {
     }
 }
 
+struct HistoricalPeak: Equatable {
+    let startHour: Int   // start of the costliest 2-hour window
+    let endHour: Int     // exclusive
+    let daysActive: Int  // history days with usage inside the window
+    let daysTotal: Int
+}
+
 struct InsightResult {
     enum Tone { case positive, neutral, warning }
 
@@ -198,6 +205,41 @@ enum InsightEngine {
             verdictLine: "Looking fine today.",
             tone: .positive,
             weekly: weekly
+        )
+    }
+
+    // MARK: - Historical peak
+
+    // The 2-hour window of the day that has cost the most time across the
+    // stored history — "when do I consistently waste the most time."
+    static func historicalPeak(history: [DailyUsage]) -> HistoricalPeak? {
+        guard history.count >= 3 else { return nil }
+
+        var sums = [Int](repeating: 0, count: 24)
+        for day in history where day.hourly.count == 24 {
+            for hour in 0..<24 { sums[hour] += day.hourly[hour] }
+        }
+        guard sums.contains(where: { $0 > 0 }) else { return nil }
+
+        var bestStart = 0
+        var bestTotal = -1
+        for start in 0..<23 {
+            let total = sums[start] + sums[start + 1]
+            if total > bestTotal {
+                bestTotal = total
+                bestStart = start
+            }
+        }
+
+        let daysActive = history.filter {
+            $0.hourly.count == 24 && $0.hourly[bestStart] + $0.hourly[bestStart + 1] > 0
+        }.count
+
+        return HistoricalPeak(
+            startHour: bestStart,
+            endHour: bestStart + 2,
+            daysActive: daysActive,
+            daysTotal: history.count
         )
     }
 

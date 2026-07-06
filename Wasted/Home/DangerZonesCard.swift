@@ -1,6 +1,6 @@
 import SwiftUI
 
-private let red       = Color(red: 1, green: 0.23, blue: 0.19)
+private let red       = Color.alarm
 private let cardBg    = Color(white: 0.055)
 private let dimText   = Color(white: 0.25)
 

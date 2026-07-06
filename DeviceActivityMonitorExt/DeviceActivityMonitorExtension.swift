@@ -9,6 +9,7 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     let store = UsageStore()
     let liveActivityManager = LiveActivityManager()
     let notificationScheduler = NotificationScheduler()
+    let receiptScheduler = ReceiptScheduler()
 
     override func intervalDidStart(for activity: DeviceActivityName) {
         // New day — reset badge and increment days-tracked counter
@@ -55,14 +56,12 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             totalSeconds: totalSeconds
         )
 
-        if minutes % 60 == 0 {
-            let hours = minutes / 60
-            notificationScheduler.scheduleHourlyMilestone(
-                appName: appName,
-                hours: hours,
-                totalSeconds: store.totalSecondsAllApps()
-            )
+        if NudgeGate.shouldNudge(minutes: minutes, last: store.lastNudge(for: appIndex)) {
+            notificationScheduler.scheduleNudge(appName: appName, minutes: minutes)
+            store.recordNudge(minutes: minutes, for: appIndex)
         }
+
+        receiptScheduler.refresh(usage: store.loadTodayUsage(), displayNames: allDisplayNames())
 
         let totalMinutes = store.totalSecondsAllApps() / 60
         Task {
@@ -75,11 +74,15 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     // MARK: - Private
 
     private func resolveDisplayName(for index: String) -> String {
+        allDisplayNames()[index] ?? "App \(index)"
+    }
+
+    private func allDisplayNames() -> [String: String] {
         guard
             let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID),
             let data = defaults.data(forKey: AppGroupKeys.displayNamesKey),
             let names = try? JSONDecoder().decode([String: String].self, from: data)
-        else { return "App \(index)" }
-        return names[index] ?? "App \(index)"
+        else { return [:] }
+        return names
     }
 }

@@ -3,6 +3,7 @@ import SwiftUI
 struct HookView: View {
     let onContinue: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var visible = false
 
     private let lines: [(String, Double)] = [
@@ -16,7 +17,7 @@ struct HookView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            Color.canvas.ignoresSafeArea()
 
             VStack(alignment: .leading, spacing: 0) {
                 Spacer()
@@ -27,10 +28,10 @@ struct HookView: View {
                         Text(text)
                             .font(.system(size: text == "gone." ? 42 : 28, weight: text == "gone." ? .bold : .light, design: .serif))
                             .italic(text == "gone.")
-                            .foregroundStyle(text == "gone." ? Color.white : Color.white.opacity(0.85))
+                            .foregroundStyle(text == "gone." ? Color.ink : Color.ink.opacity(0.85))
                             .opacity(visible ? 1 : 0)
-                            .offset(y: visible ? 0 : 12)
-                            .animation(.easeOut(duration: 0.6).delay(delay), value: visible)
+                            .offset(y: visible || reduceMotion ? 0 : 12)
+                            .animation(entrance(delay: delay), value: visible)
                     }
                 }
                 .padding(.horizontal, 32)
@@ -38,18 +39,27 @@ struct HookView: View {
                 Spacer()
                 Spacer()
 
-                Button(action: onContinue) {
+                Button(action: advance) {
                     Text("i want to change this")
                         .font(.system(size: 15, weight: .regular))
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(Color.inkFaint)
                         .frame(maxWidth: .infinity)
                         .padding(.bottom, 52)
                 }
                 .opacity(visible ? 1 : 0)
-                .animation(.easeOut(duration: 0.6).delay(3.2), value: visible)
+                .animation(entrance(delay: 3.2), value: visible)
             }
         }
         .onAppear { visible = true }
-        .onTapGesture { onContinue() }
+        .onTapGesture { advance() }
+    }
+
+    private func advance() {
+        Haptics.light()
+        onContinue()
+    }
+
+    private func entrance(delay: Double) -> Animation? {
+        reduceMotion ? nil : .easeOut(duration: 0.6).delay(delay)
     }
 }

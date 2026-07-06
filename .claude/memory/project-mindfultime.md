@@ -1,125 +1,57 @@
 ---
 name: project-wasted
-description: Wasted — iOS screen time awareness app. Builds on Xcode 26.6 / iOS 26.5 sim, 37 tests pass. Pushed to github.com/singhsanskar202/wasted. Hourly-storage consolidated into DailyUsage.hourly[]; build + test-scheme fixed 2026-06-30.
+description: Wasted — iOS screen time awareness app. Builds on Xcode 26.6 / iOS 26.5 sim, 61 tests pass. Mirror-polish pass shipped 2026-07-06 (differentiation onboarding, haptics, 30-min nudges, daily receipt, peak-hour insight, §2 palette).
 metadata: 
   node_type: memory
   type: project
   originSessionId: 329444d4-ba54-4700-8297-c235c24e4d9a
 ---
 
-**Wasted** is an iOS app (iPhone 14 Pro+, iOS 17+) that tracks per-app screen time, shows a live ticking counter in the Dynamic Island, and confronts the user with blunt usage data and actionable insights.
-
-**Why:** Personal digital wellbeing tool → TestFlight friends → App Store.
+**Wasted** is an iOS app (iPhone 14 Pro+, iOS 17+) that tracks per-app screen time, shows a live ticking counter in the Dynamic Island, and confronts the user with blunt usage data. It is a **mirror, not a blocker** — never blocks/locks, no streak guilt, no ads. Monetization deferred (fully free for personal testing; paywall seam noted in `ActivityScheduler.startMonitoring`).
 
 **GitHub:** https://github.com/singhsanskar202/wasted  
 **Local project:** `/Users/sanskarsingh/Documents/wasted/Wasted/`
 
 ---
 
-## Current state (2026-06-30)
+## Current state (2026-07-06)
 
-**Builds clean** on Xcode 26.6, iOS 26.5 simulator (iPhone 17 Pro). **Tests: 37/37 pass.**
+**Builds clean** on Xcode 26.6, iOS 26.5 simulator (iPhone 17 Pro). **Tests: 61/61 pass** (`xcodebuild -scheme Wasted test`).
 
-> Note: if `xcodebuild` reports "CoreSimulator is out of date" (version mismatch), running any `xcrun simctl` command reloads the stale service and clears it; a Mac restart also fixes it.
+> If `xcodebuild` reports "CoreSimulator is out of date", any `xcrun simctl` command reloads the stale service; a Mac restart also fixes it.
 
-**Architecture — 4 Xcode targets:**
-- `Wasted` (main app): Onboarding (5 screens), HomeView, InsightEngine, ActivityScheduler
-- `DeviceActivityMonitorExt`: DeviceActivityMonitorExtension, LiveActivityManager, NotificationScheduler
-- `LiveActivityExt`: Widget extension for Dynamic Island
-- `WastedTests`: 37 unit tests (wired into the `Wasted` scheme's TestAction — run via `xcodebuild -scheme Wasted test`)
-
-**Key identifiers:**
-- Bundle ID: `com.sanskar.Wasted`
-- App Group: `group.com.sanskar.Wasted`
-- Team ID: `ZZZ87SSQ8S` (free personal account)
-- Dev deployment target: iOS 26.5
+**Architecture — 3 Xcode targets + tests:** `Wasted` (app), `DeviceActivityMonitorExt`, `LiveActivityExtExtension`, `WastedTests`.
+**Key identifiers:** Bundle `com.sanskar.Wasted`, App Group `group.com.sanskar.Wasted`, Team `ZZZ87SSQ8S` (free account), target iOS 26.5.
 
 ---
 
-## What was built this session
+## What shipped 2026-07-06 ("mirror polish" pass)
 
-### Onboarding (5 screens — remote Xcode project had already done this before session)
-Remote repo had a gen-z redesign:
-- `HookView` — staggered stat animation ("60 days a year. gone.")
-- `PermissionView` — Screen Time auth
-- `NotificationPermissionView` — "prove me wrong" notification ask
-- `AppPickerView` — raw-tone app picker
-- `DoneView` — "no hiding now." with entrance animation
-- `OnboardingContainerView` — fade transitions between 5 screens
+Spec/plan: `docs/superpowers/{specs,plans}/2026-07-06-mirror-polish.md` (includes full audit table).
 
-### HomeView (`Wasted/Home/HomeView.swift`)
-Keeps remote's minimalist style:
-- Daily quote (date-seeded, same quote all day)
-- "you wasted Xh Ym on your phone today" big centered text with spring animation
-- EquivalentTaskMapper — maps total seconds to motivational activities ("that's a full workout 💪")
-- HeatmapView (after 7 days) or PatternLockedView (countdown + ghost bars)
-- **DangerZonesCard + WeeklyCard inserted below heatmap section** (new this session)
+- **Theme (`Wasted/Theme.swift`, app target only):** `Color.canvas` #0A0A0A, `.ink` #F5F3EE, `.inkFaint`, `.alarm` (red, reserved for bad numbers only) + `Haptics` enum. Orange accents removed everywhere; heatmap peak goes red only when the peak hour ≥1h; receipt total red only ≥1h (matches Dynamic Island rule).
+- **Onboarding re-sequenced:** Hook → **DifferentiationView (new, "this won't block anything.")** → Screen Time permission → AppPicker → Notification permission → Done. *Picker must come after permission — `familyActivityPicker` can't list apps without FamilyControls auth (platform constraint; brief wanted picker first).* Haptics wired exactly per the brief's table (one heavy: DoneView entrance). Reduced motion respected in all staggered/entrance animations. NotificationPermissionView copy now says "a nudge every 30 minutes you keep scrolling. one receipt at night."
+- **30-min nudges:** `Wasted/Shared/Nudges.swift` (both targets) — `NudgeGate.shouldNudge` (30-min multiples, monotonic per app per day, 10-min wall-clock gap against threshold bursts), `NudgeCopy` (6 lowercase bodies, no exclamations/guilt). `UsageStore.lastNudge/recordNudge` under `nudge_records` key. Extension now gates on `NudgeGate` instead of `minutes % 60`.
+- **Daily receipt:** `Wasted/Shared/DailyReceipt.swift` (both targets) — itemized per-app, total, `percentOfAwakeDay` against `AppGroupKeys.awakeDayHours = 16`. `ReceiptScheduler` (ext) re-schedules a replaceable local notification (id `wasted.receipt`, 21:00 = `AppGroupKeys.receiptHour`) on every threshold event so the 9 PM body has the latest totals; skipped after 21:00. In-app: `Wasted/Receipt/ReceiptView.swift` sheet from a "today's receipt" button on HomeView (light haptic).
+- **Peak-hour history insight:** `InsightEngine.historicalPeak(history:)` — costliest contiguous 2-hour window summed across 7-day history + days-active count; needs ≥3 history days. Rendered as serif line on HomeView ("you lose the most time between 9pm–11pm. / 5 of the last 7 days").
+- **HomeView:** big number now serif (was `.rounded`), equivalent line serif + emoji dropped, palette swept to canvas/ink.
+- **Cleanup:** deleted dead `ContentView.swift`, `AppGridView.swift`, `hourlyUsageKey` helpers. `AppGroupKeys.formattedTime` refactored onto new `formattedDuration(_ seconds:)`.
+- **New tests:** NudgeTests, DailyReceiptTests, HistoricalPeakTests, formattedDuration cases (37 → 61).
 
-### InsightEngine (`Wasted/Insights/InsightEngine.swift`)
-Pure rule engine — 11 priority-ordered rules:
-1. Nothing today → "Clean so far. Come back tonight." (positive)
-2. >30% drop vs yesterday → "X% less than yesterday." (positive)
-3. Yesterday's peak hour is clean today → "You skipped the Xpm habit." (positive)
-4. Under 1 hour total → "Under an hour total. That's rare." (positive)
-5. Single zone eats >50% → "Kill the X–Xpm zone and you cut today's waste in half." (warning)
-6. 3+ danger zones → "N danger zones." (warning)
-7. >15% worse than yesterday → "X% more than yesterday." (warning)
-8. 4h+ clean streak, no warnings fired → "Xh clean streak. Don't break it." (neutral)
-9. Scattered across >4 zones → "No single zone to cut." (neutral)
-10. Default: biggest zone named (neutral)
-11. Fallback → positive
+## Key gotchas (still true)
 
-Thresholds: low=5min, moderate=30min, danger=60min per hour slot.
+- `ApplicationToken.bundleIdentifier` is private — event names are `"appIndex:minutes"`; icons keyed by display name.
+- `accumulatedStart = Date() - totalSeconds` makes the Live Activity resume from the day's total.
+- **Synchronized-group target membership:** shared files used by the extension must be listed in the ext's `membershipExceptions` in `project.pbxproj` (now includes `Shared/Nudges.swift` and `Shared/DailyReceipt.swift`). A missed entry fails with "cannot find type …".
+- Big chained functional expressions can hit "unable to type-check in reasonable time" in the ext target — write loops (bit DailyReceipt once).
+- `UsageStore.defaults` must stay `internal`; `CODE_SIGNING_REQUIRED = NO` on the ext for the free account; `#if targetEnvironment(simulator)` bypasses onboarding in `WastedApp.swift`.
 
-### DangerZonesCard (`Wasted/Home/DangerZonesCard.swift`)
-- 24h color timeline strip: clean/low/moderate/danger (option C from mockup)
-- Legend row
-- Zone cards: DANGER/MOD/LOW pill + time range + apps + seconds
-- Verdict banner: green (positive), neutral gray, red-tinted (warning)
-- Card title flips: "CLEAN ZONES" / "USAGE PATTERN" / "DANGER ZONES"
-
-### WeeklyCard (`Wasted/Home/WeeklyCard.swift`)
-- Unlocks after 7 days of history
-- Bar chart of last 7 days, bars brighten toward most recent
-- ↓ IMPROVING / → FLAT / ↑ WORSENING trend badge
-- Verdict banner with matching tone
-
-### Data layer additions
-- `DailyUsage.hourly[24]` — backward-compat decode (missing field defaults to all-zeros)
-- `DailyUsage.dateString(from:)` static helper
-- `UsageStore.addHourlySeconds(_:)` — buckets into current hour in DailyUsage.hourly
-- `UsageStore.archiveToHistory(_:)` — rolling 7-day history
-- `UsageStore.loadHistory() -> [DailyUsage]`
-- `UsageStore.loadYesterday() -> DailyUsage?`
-- `AppGroupKeys.historyKey` + `daysTrackedKey`
-- `DeviceActivityMonitorExtension` archives today on `intervalDidEnd`, increments `daysTrackedKey` on `intervalDidStart`
-
----
-
-## Key technical decisions / gotchas
-
-- `ApplicationToken.bundleIdentifier` is private — event names use `"appIndex:minutes"` format
-- `Application.token` is `ApplicationToken?` — always guard-unwrap
-- `accumulatedStart = Date() - totalSeconds` makes SwiftUI `.timer` style tick live
-- **Hourly storage (refactored 2026-06-30):** `UsageStore+Hourly.swift` and the old `hourly_usage_<date>` App Group keys are GONE. `HourlyUsage` now lives in `Wasted/Shared/Models/HourlyUsage.swift`; `UsageStore.loadTodayHourly()` derives a `HourlyUsage` from the `DailyUsage.hourly[24]` array (single source of truth). `HomeView.heatmapDaysLeft` now uses `store.loadHistory().count`.
-- **Target membership matters with synchronized groups:** `UsageStore.swift` is compiled into `DeviceActivityMonitorExt`, so any type it references must also be in that target. `HourlyUsage.swift` had to be added to the ext's `membershipExceptions` in `project.pbxproj` or the ext fails with "cannot find type 'HourlyUsage'". (The dead `hourlyUsageKey`/`hourlyUsageKeyPrefix` helpers still linger in `AppGroupKeys.swift` — harmless, safe to delete later.)
-- `EquivalentTaskMapper` is **main app target only** — removed from `NotificationScheduler` (extension target)
-- `UsageStore.defaults` must be `internal` (not `private`) so shared extension files can access it
-- `CODE_SIGNING_REQUIRED = NO` on DeviceActivityMonitorExt for free developer account
-- `#if targetEnvironment(simulator)` in `WastedApp.swift` bypasses onboarding on simulator
-
----
-
-## What's blocked until paid Apple Developer account ($99)
-- Family Controls entitlement → DeviceActivity tracking on device
-- App Groups on device → inter-extension data sharing
-- Real Dynamic Island testing
-
----
+## Blocked until paid Apple Developer account ($99)
+Family Controls entitlement on device, App Groups on device, real Dynamic Island testing, widget targets.
 
 ## What's next (to discuss)
-1. **Dynamic Island redesign** — current has blank placeholder icon, basic timer format, no ragebait copy on lock screen. Agreed it needs: real icon, `Xh Ym` format (red only above 1h), "still here?" nudge line on lock screen.
-2. **Widget target** — needs paid developer account (new Xcode target). Discussed: accessoryCircular + accessoryRectangular lock screen widgets.
-3. **Receipt section in HomeView** — per-app seconds breakdown (designed in mockup, not yet in code — remote's minimalist HomeView doesn't have it).
+1. **On-device validation** of the whole loop (needs paid account): nudge cadence feel, receipt notification timing, Live Activity jumps.
+2. Receipt polish: consider firing the receipt on first app open after 9 PM when the notification was missed (currently notification-only + on-demand).
+3. TestFlight prep once the loop proves itself; then revisit paid-app plan (paywall seam is in `ActivityScheduler.startMonitoring`).
 
-**How to apply:** When user opens next session on this project, pick up from Dynamic Island redesign or receipt section — confirm which they want to tackle first.
+**How to apply:** Next session, ask whether to start with on-device validation or continue UI polish; don't rebuild what the 2026-07-06 spec already covers.

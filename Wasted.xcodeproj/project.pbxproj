@@ -81,10 +81,12 @@
 		6953DA132FC5E09800D38AF0 /* Exceptions for "Wasted" folder in "DeviceActivityMonitorExt" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Shared/DailyReceipt.swift,
 				Shared/LiveActivity/TimeTrackerAttributes.swift,
 				Shared/Models/AppGroupKeys.swift,
 				Shared/Models/DailyUsage.swift,
 				Shared/Models/HourlyUsage.swift,
+				Shared/Nudges.swift,
 				Shared/Storage/UsageStore.swift,
 			);
 			target = 6953D9952FC5D31200D38AF0 /* DeviceActivityMonitorExt */;

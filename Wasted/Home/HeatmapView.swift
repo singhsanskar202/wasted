@@ -8,6 +8,12 @@ struct HeatmapView: View {
         hourlyData.hours.values.max() ?? 1
     }
 
+    // Red is reserved for "this number is bad" — the peak only earns it
+    // once that hour crosses the danger threshold (1h).
+    private var peakColor: Color {
+        peakSeconds >= 3600 ? .alarm : Color.ink.opacity(0.75)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -20,7 +26,7 @@ struct HeatmapView: View {
                 if let peak = hourlyData.peakHour {
                     Text("Peak: \(hourLabel(peak))")
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(peakColor)
                 }
             }
             .padding(.horizontal, 24)
@@ -32,7 +38,7 @@ struct HeatmapView: View {
                         x: .value("Hour", hour),
                         y: .value("Min", seconds / 60)
                     )
-                    .foregroundStyle(seconds == peakSeconds && seconds > 0 ? Color.orange : Color.white.opacity(0.25))
+                    .foregroundStyle(seconds == peakSeconds && seconds > 0 ? peakColor : Color.ink.opacity(0.25))
                     .cornerRadius(2)
                 }
             }

@@ -6,24 +6,29 @@ enum AppGroupKeys {
     static let trackedSelectionKey = "tracked_selection"
     static let activeAppBundleIdKey = "active_app_bundle_id"
     static let activeSessionStartKey = "active_session_start"
-    static let hourlyUsageKeyPrefix = "hourly_usage_"
     static let displayNamesKey = "display_names"
     static let daysTrackedKey = "days_tracked"
     static let historyKey = "usage_history"
+    static let nudgeRecordsKey = "nudge_records"
 
-    static func hourlyUsageKey(for date: String) -> String {
-        "\(hourlyUsageKeyPrefix)\(date)"
-    }
+    // The receipt measures against waking hours, not the full 24.
+    static let awakeDayHours = 16
+    static let receiptHour = 21
 
     static func appIconKey(for appName: String) -> String {
         "app_icon_\(appName)"
     }
 
+    static func formattedDuration(_ seconds: Int) -> String {
+        let s = max(0, seconds)
+        let h = s / 3600
+        let m = (s % 3600) / 60
+        if h > 0 { return "\(h)h \(m)m" }
+        return "\(m)m"
+    }
+
     static func formattedTime(from accumulatedStart: Date) -> (text: String, isAtLeast1Hour: Bool) {
         let seconds = max(0, Int(Date().timeIntervalSince(accumulatedStart)))
-        let h = seconds / 3600
-        let m = (seconds % 3600) / 60
-        if h > 0 { return ("\(h)h \(m)m", true) }
-        return ("\(m)m", false)
+        return (formattedDuration(seconds), seconds >= 3600)
     }
 }

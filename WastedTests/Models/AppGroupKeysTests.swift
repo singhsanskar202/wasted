@@ -35,4 +35,16 @@ final class AppGroupKeysTests: XCTestCase {
         XCTAssertEqual(result.text, "0m")
         XCTAssertFalse(result.isAtLeast1Hour)
     }
+
+    func test_formattedDuration_formatsAcrossRanges() {
+        XCTAssertEqual(AppGroupKeys.formattedDuration(0), "0m")
+        XCTAssertEqual(AppGroupKeys.formattedDuration(42 * 60), "42m")
+        XCTAssertEqual(AppGroupKeys.formattedDuration(3600), "1h 0m")
+        XCTAssertEqual(AppGroupKeys.formattedDuration(5040), "1h 24m")
+        XCTAssertEqual(AppGroupKeys.formattedDuration(-30), "0m")
+    }
+
+    func test_awakeDayConstant_is16Hours() {
+        XCTAssertEqual(AppGroupKeys.awakeDayHours, 16)
+    }
 }

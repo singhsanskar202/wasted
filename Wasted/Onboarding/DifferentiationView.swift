@@ -1,9 +1,7 @@
 import SwiftUI
 
-struct PermissionView: View {
-    let onGranted: () -> Void
-
-    @State private var wasDenied = false
+struct DifferentiationView: View {
+    let onContinue: () -> Void
 
     var body: some View {
         ZStack {
@@ -13,14 +11,12 @@ struct PermissionView: View {
                 Spacer()
 
                 VStack(alignment: .leading, spacing: 20) {
-                    Text("first,\nwe need to\nsee the damage.")
+                    Text("this won't\nblock anything.")
                         .font(.system(size: 32, weight: .semibold))
                         .foregroundStyle(Color.ink)
                         .lineSpacing(4)
 
-                    Text(wasDenied
-                         ? "wasted can't see anything without this."
-                         : "screen time access.\nyour data. your device.\nnobody else sees it.")
+                    Text("blockers get deleted.\nstreaks get abandoned.\nwasted just keeps count —\na number you can't unsee.")
                         .font(.system(size: 17, weight: .light))
                         .foregroundStyle(Color.inkFaint)
                         .lineSpacing(6)
@@ -30,18 +26,10 @@ struct PermissionView: View {
                 Spacer()
 
                 Button {
-                    Task {
-                        await ActivityScheduler.shared.requestAuthorization()
-                        if ActivityScheduler.shared.isAuthorized {
-                            Haptics.success()
-                            onGranted()
-                        } else {
-                            Haptics.warning()
-                            wasDenied = true
-                        }
-                    }
+                    Haptics.light()
+                    onContinue()
                 } label: {
-                    Text("allow access")
+                    Text("understood")
                         .font(.system(size: 16, weight: .medium))
                         .foregroundStyle(.black)
                         .frame(maxWidth: .infinity)

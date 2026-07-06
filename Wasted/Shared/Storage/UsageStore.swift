@@ -81,6 +81,31 @@ final class UsageStore {
         return loadHistory().first { $0.date == yesterday }
     }
 
+    // MARK: - Nudges
+
+    func lastNudge(for appIndex: String) -> NudgeRecord? {
+        loadNudgeRecords()[appIndex]
+    }
+
+    func recordNudge(minutes: Int, for appIndex: String, at date: Date = Date()) {
+        var records = loadNudgeRecords()
+        records[appIndex] = NudgeRecord(
+            date: DailyUsage.todayString(),
+            minutes: minutes,
+            firedAt: date
+        )
+        guard let data = try? JSONEncoder().encode(records) else { return }
+        defaults.set(data, forKey: AppGroupKeys.nudgeRecordsKey)
+    }
+
+    private func loadNudgeRecords() -> [String: NudgeRecord] {
+        guard
+            let data = defaults.data(forKey: AppGroupKeys.nudgeRecordsKey),
+            let records = try? JSONDecoder().decode([String: NudgeRecord].self, from: data)
+        else { return [:] }
+        return records
+    }
+
     // MARK: - Active Session
 
     func setActiveApp(bundleId: String, sessionStart: Date) {

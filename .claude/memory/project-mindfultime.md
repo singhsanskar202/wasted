@@ -49,6 +49,9 @@ Spec/plan: `docs/superpowers/{specs,plans}/2026-07-06-mirror-polish.md` (include
 ## Blocked until paid Apple Developer account ($99)
 Family Controls entitlement on device, App Groups on device, real Dynamic Island testing, widget targets.
 
+## Launch pass planned 2026-07-09
+Apple Developer Program **active**; Family Controls dev provisioning verified (`xcodebuild -allowProvisioningUpdates` → succeeded, all 3 targets). Entitlements files created for app/monitor-ext/live-activity-ext and wired in pbxproj; `CODE_SIGNING_REQUIRED=NO` hack removed. Full launch plan + monetization spec at `docs/superpowers/{plans,specs}/2026-07-09-launch-pass.md`: $9.99 one-time lifetime unlock (no subscription — that's the positioning), 7-day local trial via TrialClock, expired = data records but surfaces frost over; guess→reality onboarding moment; widgets target; app icon; Family Controls *distribution* entitlement request is the launch long pole. Device: "Sanskar's iphone" iPhone 15 iOS 26.5, devicectl id 9B8A2D59-C282-5C05-A501-51C47D3C724E.
+
 ## What's next (to discuss)
 1. **On-device validation** of the whole loop (needs paid account): nudge cadence feel, receipt notification timing, Live Activity jumps.
 2. Receipt polish: consider firing the receipt on first app open after 9 PM when the notification was missed (currently notification-only + on-demand).

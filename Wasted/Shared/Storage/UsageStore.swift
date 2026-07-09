@@ -106,6 +106,52 @@ final class UsageStore {
         return records
     }
 
+    // MARK: - Trial + purchase
+
+    func firstLaunchDate() -> Date? {
+        let ti = defaults.double(forKey: AppGroupKeys.firstLaunchKey)
+        guard ti > 0 else { return nil }
+        return Date(timeIntervalSince1970: ti)
+    }
+
+    func stampFirstLaunchIfNeeded(now: Date = Date()) {
+        guard firstLaunchDate() == nil else { return }
+        defaults.set(now.timeIntervalSince1970, forKey: AppGroupKeys.firstLaunchKey)
+    }
+
+    func isUnlocked() -> Bool {
+        defaults.bool(forKey: AppGroupKeys.lifetimeUnlockedKey)
+    }
+
+    func setUnlocked(_ unlocked: Bool) {
+        defaults.set(unlocked, forKey: AppGroupKeys.lifetimeUnlockedKey)
+    }
+
+    // MARK: - Reality check
+
+    func guessSeconds() -> Int? {
+        let value = defaults.integer(forKey: AppGroupKeys.dailyGuessKey)
+        return value > 0 ? value : nil
+    }
+
+    func isRealityCheckShown() -> Bool {
+        defaults.bool(forKey: AppGroupKeys.realityCheckShownKey)
+    }
+
+    func setRealityCheckShown(_ shown: Bool) {
+        defaults.set(shown, forKey: AppGroupKeys.realityCheckShownKey)
+    }
+
+    // MARK: - Receipt auto-show
+
+    func lastReceiptAutoShowDate() -> String? {
+        defaults.string(forKey: AppGroupKeys.lastReceiptAutoShowKey)
+    }
+
+    func markReceiptAutoShown(date: String = DailyUsage.todayString()) {
+        defaults.set(date, forKey: AppGroupKeys.lastReceiptAutoShowKey)
+    }
+
     // MARK: - Active Session
 
     func setActiveApp(bundleId: String, sessionStart: Date) {

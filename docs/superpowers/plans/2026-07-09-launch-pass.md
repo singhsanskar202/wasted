@@ -49,8 +49,8 @@ Provisioning is already verified (2026-07-09): `-allowProvisioningUpdates` mints
       Array(stride(from: 130, through: 240, by: 10)) +
       Array(stride(from: 255, through: 480, by: 15))
   ```
-  (51 events/app instead of 96 — same early fidelity, fewer extension wakes, headroom against DeviceActivity's undocumented event limits.) Make it `static let` on `ActivityScheduler` so it's testable.
-- [ ] Test: every multiple of 30 from 30…480 is present (NudgeGate depends on it); list is strictly ascending; count == 51.
+  (52 events/app instead of 96 — same early fidelity, fewer extension wakes, headroom against DeviceActivity's undocumented event limits.) Make it `static let` on `ActivityScheduler` so it's testable.
+- [ ] Test: every multiple of 30 from 30…480 is present (NudgeGate depends on it); list is strictly ascending; count == 52.
 - [ ] Acceptance: island stays bright between thresholds on device; nudges still fire at every 30-min mark.
 
 ## Phase 2 — The sellable layer (2–3 days)

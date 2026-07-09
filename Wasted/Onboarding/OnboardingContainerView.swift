@@ -16,18 +16,21 @@ struct OnboardingContainerView: View {
                 HookView { advance() }
                     .transition(.opacity)
             case 1:
-                DifferentiationView { advance() }
+                GuessView { advance() }
                     .transition(.opacity)
             case 2:
-                PermissionView { advance() }
+                DifferentiationView { advance() }
                     .transition(.opacity)
             case 3:
+                PermissionView { advance() }
+                    .transition(.opacity)
+            case 4:
                 AppPickerView { selection in
                     ActivityScheduler.shared.startMonitoring(selection: selection)
                     advance()
                 }
                 .transition(.opacity)
-            case 4:
+            case 5:
                 NotificationPermissionView { advance() }
                     .transition(.opacity)
             default:

@@ -5,13 +5,13 @@ import WidgetKit
 
 struct ScreenTimeEntry: TimelineEntry {
     let date: Date
-    let totalMinutes: Int
-    let peakHourLabel: String
+    let totalSeconds: Int
+    let isExpired: Bool
 }
 
 struct WastedTimelineProvider: TimelineProvider {
     func placeholder(in context: Context) -> ScreenTimeEntry {
-        ScreenTimeEntry(date: Date(), totalMinutes: 47, peakHourLabel: "9pm")
+        ScreenTimeEntry(date: Date(), totalSeconds: 2820, isExpired: false)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (ScreenTimeEntry) -> Void) {
@@ -20,39 +20,56 @@ struct WastedTimelineProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<ScreenTimeEntry>) -> Void) {
         let entry = makeEntry()
-        let nextRefresh = Calendar.current.date(byAdding: .minute, value: 15, to: Date())!
+        let nextRefresh = Calendar.current.date(byAdding: .hour, value: 1, to: Date())!
         completion(Timeline(entries: [entry], policy: .after(nextRefresh)))
     }
 
     private func makeEntry() -> ScreenTimeEntry {
         let store = UsageStore()
-        let totalMinutes = store.totalSecondsAllApps() / 60
-        let hourly = store.loadTodayHourly()
-        let peakLabel: String
-        if let peak = hourly.peakHour {
-            peakLabel = peak < 12 ? "\(peak == 0 ? 12 : peak)am" : "\(peak == 12 ? 12 : peak - 12)pm"
-        } else {
-            peakLabel = "--"
-        }
-        return ScreenTimeEntry(date: Date(), totalMinutes: totalMinutes, peakHourLabel: peakLabel)
+        let totalSeconds = store.totalSecondsAllApps()
+        let trialState = TrialClock.state(firstLaunch: store.firstLaunchDate(), unlocked: store.isUnlocked())
+        return ScreenTimeEntry(date: Date(), totalSeconds: totalSeconds, isExpired: trialState == .expired)
     }
 }
 
 // MARK: - Views
 
+struct SmallWidgetView: View {
+    let entry: ScreenTimeEntry
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Text("you wasted")
+                .font(.system(size: 10, weight: .light))
+                .foregroundStyle(Color.ink.opacity(0.35))
+                .tracking(1.5)
+
+            Text(entry.isExpired ? "??m" : AppGroupKeys.formattedDuration(entry.totalSeconds))
+                .font(.system(size: 30, weight: .bold, design: .serif))
+                .foregroundStyle(entry.isExpired ? Color.ink.opacity(0.3) : displayColor)
+
+            Text(entry.isExpired ? "unlock to see" : "today")
+                .font(.system(size: 10, weight: .light))
+                .foregroundStyle(Color.ink.opacity(0.35))
+                .tracking(1.5)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .containerBackground(Color.canvas, for: .widget)
+    }
+
+    private var displayColor: Color {
+        entry.totalSeconds >= 3600 ? .alarm : Color.ink
+    }
+}
+
 struct CircularWidgetView: View {
     let entry: ScreenTimeEntry
 
     var body: some View {
-        Gauge(value: Double(min(entry.totalMinutes, 240)), in: 0...240) {
-            Text("min")
-                .font(.system(size: 8))
-        } currentValueLabel: {
-            Text("\(entry.totalMinutes)")
-                .font(.system(.body, design: .rounded).bold())
-        }
-        .gaugeStyle(.accessoryCircularCapacity)
-        .tint(.white)
+        Text(entry.isExpired ? "??" : AppGroupKeys.formattedDuration(entry.totalSeconds))
+            .font(.system(size: 15, weight: .bold, design: .serif))
+            .minimumScaleFactor(0.6)
+            .containerBackground(.clear, for: .widget)
     }
 }
 
@@ -60,17 +77,16 @@ struct RectangularWidgetView: View {
     let entry: ScreenTimeEntry
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("WASTED")
-                .font(.system(size: 9, weight: .semibold))
+        HStack(spacing: 4) {
+            Text("wasted ·")
+                .font(.system(size: 12, weight: .light))
                 .foregroundStyle(.secondary)
-            Text("\(entry.totalMinutes) min")
-                .font(.system(.title3, design: .rounded).bold())
-            Text("peak \(entry.peakHourLabel)")
-                .font(.system(size: 10))
-                .foregroundStyle(.secondary)
+            Text(entry.isExpired ? "??m" : AppGroupKeys.formattedDuration(entry.totalSeconds))
+                .font(.system(size: 13, weight: .semibold, design: .serif))
+                .foregroundStyle(entry.totalSeconds >= 3600 && !entry.isExpired ? Color.alarm : .primary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .containerBackground(.clear, for: .widget)
     }
 }
 
@@ -81,23 +97,33 @@ struct WastedScreenTimeWidget: Widget {
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: WastedTimelineProvider()) { entry in
-            Group {
-                switch WidgetInfo.family {
-                case .accessoryCircular:
-                    CircularWidgetView(entry: entry)
-                default:
-                    RectangularWidgetView(entry: entry)
-                }
-            }
-            .containerBackground(.clear, for: .widget)
+            WidgetContent(entry: entry)
         }
-        .configurationDisplayName("Screen Time")
-        .description("Today's total tracked screen time.")
-        .supportedFamilies([.accessoryCircular, .accessoryRectangular])
+        .configurationDisplayName("Wasted")
+        .description("The number, on your home or lock screen.")
+        .supportedFamilies([.systemSmall, .accessoryCircular, .accessoryRectangular])
     }
 }
 
-// Workaround to read widget family inside view body
-private enum WidgetInfo {
-    @Environment(\.widgetFamily) static var family
+private struct WidgetContent: View {
+    @Environment(\.widgetFamily) private var family
+    let entry: ScreenTimeEntry
+
+    var body: some View {
+        switch family {
+        case .accessoryCircular:
+            CircularWidgetView(entry: entry)
+        case .accessoryRectangular:
+            RectangularWidgetView(entry: entry)
+        default:
+            SmallWidgetView(entry: entry)
+        }
+    }
+}
+
+#Preview(as: .systemSmall) {
+    WastedScreenTimeWidget()
+} timeline: {
+    ScreenTimeEntry(date: .now, totalSeconds: 2820, isExpired: false)
+    ScreenTimeEntry(date: .now, totalSeconds: 5040, isExpired: false)
 }

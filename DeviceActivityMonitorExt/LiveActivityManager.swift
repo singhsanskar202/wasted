@@ -26,12 +26,12 @@ final class LiveActivityManager {
             .first(where: { $0.attributes.appBundleId == bundleId }) {
             Task {
                 await existing.update(
-                    ActivityContent(state: state, staleDate: Date(timeIntervalSinceNow: 300))
+                    ActivityContent(state: state, staleDate: Date(timeIntervalSinceNow: 2700))
                 )
             }
         } else {
             let attributes = TimeTrackerAttributes(appBundleId: bundleId, appName: appName)
-            let content = ActivityContent(state: state, staleDate: Date(timeIntervalSinceNow: 300))
+            let content = ActivityContent(state: state, staleDate: Date(timeIntervalSinceNow: 2700))
             try? Activity<TimeTrackerAttributes>.request(
                 attributes: attributes,
                 content: content,

@@ -13,6 +13,16 @@ final class ActivityScheduler: ObservableObject {
 
     @Published var isAuthorized = false
 
+    // Fidelity tapers as the day goes on: 1-min steps for the first 5 minutes
+    // (the Island should react fast — that's the whole product), 5-min steps
+    // through 2h, widening to 15-min steps past 4h, since a diminishing-fidelity
+    // tail keeps the per-app event count off DeviceActivity's undocumented cap.
+    static let thresholdMinutes: [Int] =
+        Array(stride(from: 1, through: 5, by: 1)) +
+        Array(stride(from: 10, through: 120, by: 5)) +
+        Array(stride(from: 130, through: 240, by: 10)) +
+        Array(stride(from: 255, through: 480, by: 15))
+
     func requestAuthorization() async {
         do {
             try await AuthorizationCenter.shared.requestAuthorization(for: .individual)
@@ -43,11 +53,10 @@ final class ActivityScheduler: ObservableObject {
         saveIcons(for: tokens)
 
         var events: [DeviceActivityEvent.Name: DeviceActivityEvent] = [:]
-        let thresholds = Array(stride(from: 5, through: 480, by: 5))
 
         for (index, app) in tokens.enumerated() {
             guard let appToken = app.token else { continue }
-            for minutes in thresholds {
+            for minutes in Self.thresholdMinutes {
                 let name = DeviceActivityEvent.Name("\(index):\(minutes)")
                 events[name] = DeviceActivityEvent(
                     applications: [appToken],

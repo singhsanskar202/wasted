@@ -87,7 +87,9 @@
 				Shared/Models/DailyUsage.swift,
 				Shared/Models/HourlyUsage.swift,
 				Shared/Nudges.swift,
+				Shared/ReceiptScheduler.swift,
 				Shared/Storage/UsageStore.swift,
+				Shared/TrialClock.swift,
 			);
 			target = 6953D9952FC5D31200D38AF0 /* DeviceActivityMonitorExt */;
 		};

@@ -50,6 +50,7 @@ final class ActivityScheduler: ObservableObject {
             displayNames["\(index)"] = token.localizedDisplayName ?? "App \(index)"
         }
         storeDisplayNames(displayNames)
+        storeTokens(tokens)
         saveIcons(for: tokens)
 
         var events: [DeviceActivityEvent.Name: DeviceActivityEvent] = [:]
@@ -93,6 +94,22 @@ final class ActivityScheduler: ObservableObject {
                   let pngData = uiImage.pngData() else { continue }
             defaults.set(pngData, forKey: AppGroupKeys.appIconKey(for: name))
         }
+    }
+
+    // The widget extension renders the real app name with Label(token) —
+    // the only API that can resolve it (localizedDisplayName is nil here).
+    private func storeTokens(_ apps: [Application]) {
+        var tokensByIndex: [String: ApplicationToken] = [:]
+        for (index, app) in apps.enumerated() {
+            if let token = app.token {
+                tokensByIndex["\(index)"] = token
+            }
+        }
+        guard
+            let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID),
+            let data = try? JSONEncoder().encode(tokensByIndex)
+        else { return }
+        defaults.set(data, forKey: AppGroupKeys.appTokensKey)
     }
 
     private func storeDisplayNames(_ names: [String: String]) {

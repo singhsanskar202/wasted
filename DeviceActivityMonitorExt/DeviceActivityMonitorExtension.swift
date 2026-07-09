@@ -56,7 +56,8 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             liveActivityManager.startOrUpdate(
                 bundleId: appIndex,
                 appName: appName,
-                totalSeconds: totalSeconds
+                totalSeconds: totalSeconds,
+                isLive: true
             )
 
             if NudgeGate.shouldNudge(minutes: minutes, last: store.lastNudge(for: appIndex)) {

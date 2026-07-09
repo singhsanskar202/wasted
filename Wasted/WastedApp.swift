@@ -1,3 +1,4 @@
+import FamilyControls
 import SwiftUI
 
 @main
@@ -28,7 +29,6 @@ struct WastedApp: App {
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
-            #if !targetEnvironment(simulator)
             let store = UsageStore()
             store.stampFirstLaunchIfNeeded()
             let displayNames = loadDisplayNames()
@@ -36,8 +36,8 @@ struct WastedApp: App {
                 usage: store.loadTodayUsage(),
                 displayNames: displayNames
             )
+            backfillTokensIfNeeded()
             Task { await startLiveActivityIfNeeded(store: store, displayNames: displayNames) }
-            #endif
         }
     }
 
@@ -49,23 +49,40 @@ struct WastedApp: App {
         guard !Self.hasAttemptedLiveActivityThisLaunch else { return }
         Self.hasAttemptedLiveActivityThisLaunch = true
 
-        let manager = LiveActivityManager()
-        // TEMPORARY while debugging rendering: always end and await, then
-        // recreate, so we're never looking at a stale activity object from
-        // earlier today racing a fire-and-forget end.
-        await manager.endAllActivitiesAndWait()
-
         let trialState = TrialClock.state(firstLaunch: store.firstLaunchDate(), unlocked: store.isUnlocked())
         guard trialState != .expired else { return }
 
+        // Start (or refresh) the single daily activity even before any usage
+        // exists — the extension can only update an existing activity, never
+        // create one, so this is the only chance to get it on screen for the
+        // rest of the day.
         let usage = store.loadTodayUsage()
-        guard let topApp = usage.seconds.max(by: { $0.value < $1.value }), topApp.value > 0 else { return }
-
-        manager.startOrUpdate(
-            bundleId: topApp.key,
-            appName: displayNames[topApp.key] ?? "App \(topApp.key)",
-            totalSeconds: topApp.value
+        let topApp = usage.seconds.max(by: { $0.value < $1.value })
+        // isLive: false — being in Wasted is not being in a tracked app; show
+        // the exact total statically until a threshold proves active usage.
+        LiveActivityManager().startOrUpdate(
+            bundleId: topApp?.key ?? "",
+            appName: topApp.map { displayNames[$0.key] ?? "App \($0.key)" } ?? "today",
+            totalSeconds: topApp?.value ?? 0,
+            isLive: false
         )
+    }
+
+    // Tokens (for real app names in the island) are stored by
+    // startMonitoring, which normally only runs when the selection changes —
+    // users who picked their apps before token storage existed would never
+    // get them. Re-running startMonitoring is the only safe way to backfill:
+    // the index<->token mapping must be built in the same call as the
+    // threshold events or the island could show the wrong app's name.
+    private func backfillTokensIfNeeded() {
+        guard
+            let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID),
+            defaults.data(forKey: AppGroupKeys.appTokensKey) == nil,
+            let data = defaults.data(forKey: AppGroupKeys.trackedSelectionKey),
+            let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: data),
+            !selection.applications.isEmpty
+        else { return }
+        ActivityScheduler.shared.startMonitoring(selection: selection)
     }
 
     private func loadDisplayNames() -> [String: String] {

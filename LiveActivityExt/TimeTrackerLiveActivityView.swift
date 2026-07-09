@@ -7,6 +7,8 @@ struct TimeTrackerWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: TimeTrackerAttributes.self) { context in
             LockScreenBannerView(context: context)
+                .activityBackgroundTint(Color.black)
+                .activitySystemActionForegroundColor(Color.white)
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
@@ -109,6 +111,5 @@ private struct LockScreenBannerView: View {
             }
         }
         .padding()
-        .background(Color.black)
     }
 }

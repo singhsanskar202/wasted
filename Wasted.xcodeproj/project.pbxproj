@@ -83,6 +83,7 @@
 			membershipExceptions = (
 				Shared/DailyReceipt.swift,
 				Shared/LiveActivity/TimeTrackerAttributes.swift,
+				Shared/LiveActivityManager.swift,
 				Shared/Models/AppGroupKeys.swift,
 				Shared/Models/DailyUsage.swift,
 				Shared/Models/HourlyUsage.swift,

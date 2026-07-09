@@ -58,6 +58,14 @@ final class LiveActivityManager {
         }
     }
 
+    // Awaits the end so a caller can guarantee a truly fresh .request() next,
+    // rather than racing endAllActivities()'s fire-and-forget Tasks.
+    func endAllActivitiesAndWait() async {
+        for activity in Activity<TimeTrackerAttributes>.activities {
+            await activity.end(nil, dismissalPolicy: .immediate)
+        }
+    }
+
     var hasActiveActivity: Bool {
         !Activity<TimeTrackerAttributes>.activities.isEmpty
     }

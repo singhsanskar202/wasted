@@ -5,6 +5,13 @@ struct WastedApp: App {
     @AppStorage("onboarding_complete") private var onboardingComplete = false
     @Environment(\.scenePhase) private var scenePhase
 
+    // scenePhase can transition to .active more than once during a single
+    // cold launch; each firing spawned an independent, unsynchronized async
+    // Task. A later firing's "end all activities" could race the first
+    // firing's freshly-created one and kill it before the system ever
+    // rendered it. Guarding to once per process avoids that entirely.
+    private static var hasAttemptedLiveActivityThisLaunch = false
+
     var body: some Scene {
         WindowGroup {
             #if targetEnvironment(simulator)
@@ -29,7 +36,7 @@ struct WastedApp: App {
                 usage: store.loadTodayUsage(),
                 displayNames: displayNames
             )
-            startLiveActivityIfNeeded(store: store, displayNames: displayNames)
+            Task { await startLiveActivityIfNeeded(store: store, displayNames: displayNames) }
             #endif
         }
     }
@@ -38,9 +45,15 @@ struct WastedApp: App {
     // DeviceActivityMonitor extension always gets .unsupportedTarget. This is
     // the one place that can create the first activity of the day; once one
     // exists, the extension's own calls land on the update-existing path.
-    private func startLiveActivityIfNeeded(store: UsageStore, displayNames: [String: String]) {
+    private func startLiveActivityIfNeeded(store: UsageStore, displayNames: [String: String]) async {
+        guard !Self.hasAttemptedLiveActivityThisLaunch else { return }
+        Self.hasAttemptedLiveActivityThisLaunch = true
+
         let manager = LiveActivityManager()
-        guard !manager.hasActiveActivity else { return }
+        // TEMPORARY while debugging rendering: always end and await, then
+        // recreate, so we're never looking at a stale activity object from
+        // earlier today racing a fire-and-forget end.
+        await manager.endAllActivitiesAndWait()
 
         let trialState = TrialClock.state(firstLaunch: store.firstLaunchDate(), unlocked: store.isUnlocked())
         guard trialState != .expired else { return }

@@ -15,6 +15,14 @@ enum AppGroupKeys {
     static let awakeDayHours = 16
     static let receiptHour = 21
 
+    // Trial + purchase
+    static let firstLaunchKey = "first_launch_at"
+    static let lifetimeUnlockedKey = "lifetime_unlocked"
+    static let lifetimeProductID = "com.sanskar.Wasted.lifetime"
+    static let lastReceiptAutoShowKey = "last_receipt_auto_show"
+    static let dailyGuessKey = "daily_guess_seconds"
+    static let realityCheckShownKey = "reality_check_shown"
+
     static func appIconKey(for appName: String) -> String {
         "app_icon_\(appName)"
     }

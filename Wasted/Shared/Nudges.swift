@@ -27,9 +27,13 @@ enum NudgeGate {
 }
 
 enum NudgeCopy {
-    // "30m on Instagram", "1h 30m on Instagram"
-    static func title(appName: String, minutes: Int) -> String {
-        "\(AppGroupKeys.formattedDuration(minutes * 60)) on \(appName)"
+    // FamilyControls never reliably exposes the real app name to app code
+    // (it's a deliberate privacy boundary — see LiveActivityExt's use of the
+    // opaque Label(token) view for the one place a real name can render).
+    // Titles stay name-free rather than risk showing a broken placeholder.
+    // "30m", "1h 30m"
+    static func title(minutes: Int) -> String {
+        AppGroupKeys.formattedDuration(minutes * 60)
     }
 
     // Flat facts and redirects. No exclamation points, no guilt.

@@ -18,14 +18,14 @@ struct HeatmapView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("Most Distracted Hours")
-                    .font(.caption)
-                    .foregroundStyle(.gray)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color.ink.opacity(0.5))
                     .textCase(.uppercase)
                     .tracking(1)
                 Spacer()
                 if let peak = hourlyData.peakHour {
                     Text("Peak: \(hourLabel(peak))")
-                        .font(.caption)
+                        .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(peakColor)
                 }
             }
@@ -47,8 +47,8 @@ struct HeatmapView: View {
                     AxisValueLabel {
                         if let h = value.as(Int.self) {
                             Text(hourLabel(h))
-                                .font(.system(size: 9))
-                                .foregroundStyle(.gray)
+                                .font(.system(size: 10.5))
+                                .foregroundStyle(Color.ink.opacity(0.45))
                         }
                     }
                 }

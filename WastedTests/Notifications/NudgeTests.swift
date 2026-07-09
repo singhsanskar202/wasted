@@ -44,9 +44,9 @@ final class NudgeTests: XCTestCase {
     // MARK: - NudgeCopy
 
     func test_title_formatsMinutesAndHours() {
-        XCTAssertEqual(NudgeCopy.title(appName: "Instagram", minutes: 30), "30m on Instagram")
-        XCTAssertEqual(NudgeCopy.title(appName: "YouTube", minutes: 90), "1h 30m on YouTube")
-        XCTAssertEqual(NudgeCopy.title(appName: "X", minutes: 120), "2h 0m on X")
+        XCTAssertEqual(NudgeCopy.title(minutes: 30), "30m")
+        XCTAssertEqual(NudgeCopy.title(minutes: 90), "1h 30m")
+        XCTAssertEqual(NudgeCopy.title(minutes: 120), "2h 0m")
     }
 
     func test_bodies_haveVariantsWithNoExclamationPoints() {

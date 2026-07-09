@@ -2,9 +2,10 @@ import Foundation
 import UserNotifications
 
 // Local notifications carry static content, so the 9 PM receipt is
-// re-scheduled with fresh totals on every threshold event; re-adding with the
-// same identifier replaces the pending request, and the last refresh before
-// 9 PM is what fires.
+// re-scheduled with fresh totals on every threshold event (extension) and on
+// every foreground (main app), so the last refresh before 9 PM has the
+// current totals; re-adding with the same identifier replaces the pending
+// request.
 final class ReceiptScheduler {
     static let identifier = "wasted.receipt"
 

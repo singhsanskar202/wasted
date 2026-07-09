@@ -14,8 +14,8 @@ struct ReceiptView: View {
                     .foregroundStyle(Color.inkFaint)
 
                 Text(formattedDate)
-                    .font(.system(size: 12, weight: .light))
-                    .foregroundStyle(Color.ink.opacity(0.3))
+                    .font(.system(size: 13, weight: .light))
+                    .foregroundStyle(Color.ink.opacity(0.45))
                     .padding(.top, 4)
 
                 DashedRule()

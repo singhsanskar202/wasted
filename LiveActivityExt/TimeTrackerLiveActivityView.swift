@@ -3,26 +3,39 @@ import SwiftUI
 import UIKit
 import WidgetKit
 
+// TEMPORARY diagnostic — proves whether the system is actually invoking
+// this extension's rendering code at all, as opposed to a request/entitlement
+// problem upstream. Remove once Live Activity rendering is confirmed working.
+private func logRender(_ tag: String) {
+    guard let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID) else { return }
+    let entry = "\(Date()): \(tag)"
+    let previous = (defaults.string(forKey: "debug_render_log") ?? "")
+        .components(separatedBy: "\n---\n")
+    let combined = ([entry] + previous).prefix(10).joined(separator: "\n---\n")
+    defaults.set(combined, forKey: "debug_render_log")
+}
+
 struct TimeTrackerWidget: Widget {
     var body: some WidgetConfiguration {
-        ActivityConfiguration(for: TimeTrackerAttributes.self) { context in
+        logRender("TimeTrackerWidget.body evaluated")
+        return ActivityConfiguration(for: TimeTrackerAttributes.self) { context in
             LockScreenBannerView(context: context)
+                .activityBackgroundTint(Color.black)
+                .activitySystemActionForegroundColor(Color.white)
         } dynamicIsland: { context in
-            DynamicIsland {
+            logRender("dynamicIsland closure evaluated")
+            return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    HStack(spacing: 8) {
-                        AppIconView(appName: context.attributes.appName, size: 28)
-                        Text(context.attributes.appName)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.white)
-                    }
-                    .padding(.leading, 8)
+                    let _ = logRender("expandedRegion.leading rendered")
+                    Text(context.attributes.appName)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.leading, 8)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    let (text, isAtLeast1Hour) = AppGroupKeys.formattedTime(from: context.state.accumulatedStart)
-                    Text(text)
+                    Text(islandTime(context))
                         .font(.system(size: 20, weight: .bold))
-                        .foregroundStyle(isAtLeast1Hour ? .red : Color.white.opacity(0.75))
+                        .foregroundStyle(.white)
                         .padding(.trailing, 8)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
@@ -32,50 +45,26 @@ struct TimeTrackerWidget: Widget {
                         .padding(.bottom, 4)
                 }
             } compactLeading: {
-                AppIconView(appName: context.attributes.appName, size: 22)
-                    .padding(.leading, 4)
+                let _ = logRender("compactLeading rendered")
+                Text("W")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(.white)
             } compactTrailing: {
-                let (text, isAtLeast1Hour) = AppGroupKeys.formattedTime(from: context.state.accumulatedStart)
-                Text(text)
+                let _ = logRender("compactTrailing rendered")
+                Text(islandTime(context))
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(isAtLeast1Hour ? .red : Color.white.opacity(0.75))
-                    .padding(.trailing, 4)
+                    .foregroundStyle(.white)
             } minimal: {
-                AppIconView(appName: context.attributes.appName, size: 16)
-            }
-        }
-    }
-}
-
-// MARK: - App Icon View
-
-private struct AppIconView: View {
-    let appName: String
-    let size: CGFloat
-
-    private var storedIcon: UIImage? {
-        guard let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID),
-              let data = defaults.data(forKey: AppGroupKeys.appIconKey(for: appName)) else { return nil }
-        return UIImage(data: data)
-    }
-
-    var body: some View {
-        if let icon = storedIcon {
-            Image(uiImage: icon)
-                .resizable()
-                .scaledToFill()
-                .frame(width: size, height: size)
-                .clipShape(RoundedRectangle(cornerRadius: size * 0.23))
-        } else {
-            ZStack {
-                RoundedRectangle(cornerRadius: size * 0.23)
-                    .fill(Color.white.opacity(0.2))
-                    .frame(width: size, height: size)
-                Text(String(appName.prefix(1)).uppercased())
-                    .font(.system(size: size * 0.45, weight: .semibold))
+                let _ = logRender("minimal rendered")
+                Text("W")
+                    .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(.white)
             }
         }
+    }
+
+    private func islandTime(_ context: ActivityViewContext<TimeTrackerAttributes>) -> String {
+        AppGroupKeys.formattedTime(from: context.state.accumulatedStart).text
     }
 }
 
@@ -85,11 +74,10 @@ private struct LockScreenBannerView: View {
     let context: ActivityViewContext<TimeTrackerAttributes>
 
     var body: some View {
+        let _ = logRender("LockScreenBannerView.body rendered")
         let (text, isAtLeast1Hour) = AppGroupKeys.formattedTime(from: context.state.accumulatedStart)
 
         HStack(spacing: 12) {
-            AppIconView(appName: context.attributes.appName, size: 32)
-
             Text(context.attributes.appName)
                 .font(.headline)
                 .foregroundStyle(.white)
@@ -109,6 +97,5 @@ private struct LockScreenBannerView: View {
             }
         }
         .padding()
-        .background(Color.black)
     }
 }

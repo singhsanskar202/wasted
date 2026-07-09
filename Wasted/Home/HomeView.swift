@@ -38,9 +38,9 @@ struct HomeView: View {
 
                 // MARK: — Quote
                 Text(QuoteBank.todaysQuote)
-                    .font(.system(size: 15, weight: .light, design: .serif))
+                    .font(.system(size: 16, weight: .light, design: .serif))
                     .italic()
-                    .foregroundStyle(Color.ink.opacity(0.35))
+                    .foregroundStyle(Color.ink.opacity(0.5))
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 40)
                     .padding(.top, 72)
@@ -60,7 +60,7 @@ struct HomeView: View {
                         VStack(spacing: 6) {
                             Text("you wasted")
                                 .font(.system(size: 14, weight: .light))
-                                .foregroundStyle(Color.ink.opacity(0.35))
+                                .foregroundStyle(Color.ink.opacity(0.5))
                                 .tracking(2)
                                 .textCase(.lowercase)
 
@@ -74,7 +74,7 @@ struct HomeView: View {
 
                             Text("on your phone today")
                                 .font(.system(size: 14, weight: .light))
-                                .foregroundStyle(Color.ink.opacity(0.35))
+                                .foregroundStyle(Color.ink.opacity(0.5))
                                 .tracking(2)
                                 .textCase(.lowercase)
                         }
@@ -103,13 +103,13 @@ struct HomeView: View {
                             }
                         } label: {
                             Text("today's receipt")
-                                .font(.system(size: 13, weight: .light))
-                                .foregroundStyle(Color.inkFaint)
+                                .font(.system(size: 14, weight: .regular))
+                                .foregroundStyle(Color.ink.opacity(0.65))
                                 .padding(.vertical, 10)
                                 .padding(.horizontal, 20)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 20)
-                                        .stroke(Color.ink.opacity(0.15), lineWidth: 1)
+                                        .stroke(Color.ink.opacity(0.25), lineWidth: 1)
                                 )
                         }
                         .padding(.bottom, 60)
@@ -154,8 +154,8 @@ struct HomeView: View {
                                     .multilineTextAlignment(.center)
 
                                 Text("\(peak.daysActive) of the last \(peak.daysTotal) days")
-                                    .font(.system(size: 12, weight: .light))
-                                    .foregroundStyle(Color.ink.opacity(0.35))
+                                    .font(.system(size: 13, weight: .light))
+                                    .foregroundStyle(Color.ink.opacity(0.45))
                                     .tracking(1)
                             }
                             .padding(.horizontal, 40)
@@ -182,8 +182,8 @@ struct HomeView: View {
                 // MARK: — Settings row
                 HStack {
                     Text("tracking \(selection.applications.count) app\(selection.applications.count == 1 ? "" : "s")")
-                        .font(.system(size: 13, weight: .light))
-                        .foregroundStyle(Color.ink.opacity(0.3))
+                        .font(.system(size: 14, weight: .light))
+                        .foregroundStyle(Color.ink.opacity(0.45))
 
                     Spacer()
 
@@ -191,8 +191,8 @@ struct HomeView: View {
                         showingPicker = true
                     } label: {
                         Text("edit")
-                            .font(.system(size: 13, weight: .light))
-                            .foregroundStyle(Color.ink.opacity(0.3))
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(Color.ink.opacity(0.65))
                     }
                     .familyActivityPicker(isPresented: $showingPicker, selection: $selection)
                     .onChange(of: selection) { _, newValue in
@@ -205,8 +205,8 @@ struct HomeView: View {
 
                 if let trialDayLine {
                     Text(trialDayLine)
-                        .font(.system(size: 11, weight: .light))
-                        .foregroundStyle(Color.ink.opacity(0.3))
+                        .font(.system(size: 12, weight: .light))
+                        .foregroundStyle(Color.ink.opacity(0.4))
                         .padding(.horizontal, 32)
                         .padding(.bottom, 52)
                 }
@@ -407,8 +407,8 @@ private struct PatternLockedView: View {
                 .foregroundStyle(Color.ink.opacity(0.15))
 
             Text(daysLeft == 1 ? "day until your pattern unlocks" : "days until your pattern unlocks")
-                .font(.system(size: 13, weight: .light))
-                .foregroundStyle(Color.ink.opacity(0.25))
+                .font(.system(size: 14, weight: .light))
+                .foregroundStyle(Color.ink.opacity(0.4))
                 .tracking(1)
 
             // Ghost bars — progressive reveal

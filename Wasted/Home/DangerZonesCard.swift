@@ -2,7 +2,7 @@ import SwiftUI
 
 private let red       = Color.alarm
 private let cardBg    = Color(white: 0.055)
-private let dimText   = Color(white: 0.25)
+private let dimText   = Color(white: 0.45)
 
 struct DangerZonesCard: View {
     let result: InsightResult
@@ -30,13 +30,13 @@ struct DangerZonesCard: View {
     private var header: some View {
         HStack {
             Text(cardTitle)
-                .font(.system(size: 9, weight: .semibold))
+                .font(.system(size: 11, weight: .semibold))
                 .tracking(2)
                 .foregroundStyle(dimText)
             Spacer()
             Text("TODAY")
-                .font(.system(size: 9))
-                .foregroundStyle(Color(white: 0.18))
+                .font(.system(size: 10))
+                .foregroundStyle(Color(white: 0.4))
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 13)
@@ -79,8 +79,8 @@ struct DangerZonesCard: View {
                 Spacer()
                 Text("11pm")
             }
-            .font(.system(size: 8))
-            .foregroundStyle(Color(white: 0.2))
+            .font(.system(size: 10))
+            .foregroundStyle(Color(white: 0.4))
             .padding(.horizontal, 16)
             .padding(.top, 5)
             .padding(.bottom, 12)
@@ -116,8 +116,8 @@ struct DangerZonesCard: View {
                 .fill(color)
                 .frame(width: 8, height: 8)
             Text(label)
-                .font(.system(size: 9))
-                .foregroundStyle(Color(white: 0.22))
+                .font(.system(size: 10.5))
+                .foregroundStyle(Color(white: 0.45))
         }
     }
 
@@ -136,8 +136,8 @@ struct DangerZonesCard: View {
 
     private var emptyState: some View {
         Text("No activity yet.")
-            .font(.system(size: 12))
-            .foregroundStyle(Color(white: 0.22))
+            .font(.system(size: 13))
+            .foregroundStyle(Color(white: 0.45))
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.vertical, 16)
     }
@@ -151,14 +151,14 @@ struct DangerZonesCard: View {
                     .foregroundStyle(Color(white: 0.65))
                 if !zone.appNames.isEmpty {
                     Text(zone.appNames.joined(separator: " · "))
-                        .font(.system(size: 9))
-                        .foregroundStyle(Color(white: 0.28))
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color(white: 0.5))
                 }
             }
             Spacer()
             Text(formatted(zone.seconds))
                 .font(.system(size: 12, design: .monospaced))
-                .foregroundStyle(Color(white: 0.35))
+                .foregroundStyle(Color(white: 0.55))
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 12)
@@ -169,15 +169,15 @@ struct DangerZonesCard: View {
     private func pill(for level: DangerZone.Level) -> some View {
         let (label, fg, bg): (String, Color, Color) = {
             switch level {
-            case .clean:    return ("CLEAN",    Color(white: 0.4),  Color(white: 0.12))
-            case .low:      return ("LOW",      Color(white: 0.5),  Color(white: 0.12))
-            case .moderate: return ("MOD",      Color(red: 0.76, green: 0.50, blue: 0.13),
+            case .clean:    return ("CLEAN",    Color(white: 0.55), Color(white: 0.12))
+            case .low:      return ("LOW",      Color(white: 0.6),  Color(white: 0.12))
+            case .moderate: return ("MOD",      Color(red: 0.85, green: 0.58, blue: 0.2),
                                                 Color(red: 0.76, green: 0.50, blue: 0.13).opacity(0.15))
             case .danger:   return ("DANGER",   red,                red.opacity(0.15))
             }
         }()
         return Text(label)
-            .font(.system(size: 9, weight: .semibold))
+            .font(.system(size: 10.5, weight: .semibold))
             .tracking(0.5)
             .foregroundStyle(fg)
             .padding(.horizontal, 7)
@@ -206,13 +206,13 @@ struct DangerZonesCard: View {
         let textColor: Color = {
             switch result.tone {
             case .positive: return Color(red: 0.4, green: 0.85, blue: 0.5)
-            case .neutral:  return Color(white: 0.55)
-            case .warning:  return Color(white: 0.7)
+            case .neutral:  return Color(white: 0.68)
+            case .warning:  return Color(white: 0.8)
             }
         }()
 
         return Text(result.verdictLine)
-            .font(.system(size: 12))
+            .font(.system(size: 13))
             .foregroundStyle(textColor)
             .multilineTextAlignment(.center)
             .lineSpacing(2)

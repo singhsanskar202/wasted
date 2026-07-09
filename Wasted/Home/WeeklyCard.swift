@@ -2,7 +2,7 @@ import SwiftUI
 
 private let red     = Color.alarm
 private let cardBg  = Color(white: 0.055)
-private let dimText = Color(white: 0.25)
+private let dimText = Color(white: 0.45)
 
 struct WeeklyCard: View {
     let weekly: WeeklyInsight
@@ -23,7 +23,7 @@ struct WeeklyCard: View {
     private var header: some View {
         HStack {
             Text("THIS WEEK")
-                .font(.system(size: 9, weight: .semibold))
+                .font(.system(size: 11, weight: .semibold))
                 .tracking(2)
                 .foregroundStyle(dimText)
             Spacer()
@@ -38,11 +38,11 @@ struct WeeklyCard: View {
             switch weekly.trend {
             case .improving: return ("↓ IMPROVING", Color(red: 0.3, green: 0.8, blue: 0.4))
             case .worsening: return ("↑ WORSENING", red)
-            case .flat:      return ("→ FLAT",       Color(white: 0.35))
+            case .flat:      return ("→ FLAT",       Color(white: 0.5))
             }
         }()
         return Text(label)
-            .font(.system(size: 8, weight: .semibold))
+            .font(.system(size: 10, weight: .semibold))
             .tracking(0.5)
             .foregroundStyle(fg)
     }
@@ -68,8 +68,8 @@ struct WeeklyCard: View {
             HStack(spacing: 0) {
                 ForEach(Array(weekly.dateLabels.enumerated()), id: \.offset) { _, label in
                     Text(label)
-                        .font(.system(size: 8))
-                        .foregroundStyle(Color(white: 0.22))
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color(white: 0.45))
                         .frame(maxWidth: .infinity)
                 }
             }
@@ -100,12 +100,12 @@ struct WeeklyCard: View {
             case .worsening:
                 return (red.opacity(0.07), red.opacity(0.18), Color(white: 0.7))
             case .flat:
-                return (Color(white: 0.07), Color(white: 0.12), Color(white: 0.55))
+                return (Color(white: 0.07), Color(white: 0.12), Color(white: 0.68))
             }
         }()
 
         return Text(weekly.verdictLine)
-            .font(.system(size: 12))
+            .font(.system(size: 13))
             .foregroundStyle(textColor)
             .multilineTextAlignment(.center)
             .lineSpacing(2)

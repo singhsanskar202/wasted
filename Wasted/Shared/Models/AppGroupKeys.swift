@@ -7,8 +7,9 @@ enum AppGroupKeys {
     static let activeAppBundleIdKey = "active_app_bundle_id"
     static let activeSessionStartKey = "active_session_start"
     static let displayNamesKey = "display_names"
-    // index -> ApplicationToken (JSON) — lets the widget extension render the
-    // real app name via Label(token), the only API allowed to resolve it.
+    // index -> ApplicationToken (JSON). The app's own screens render the real
+    // name/icon via Label(token) from these; the Live Activity can't (system
+    // process), but foreground app views can.
     static let appTokensKey = "app_tokens"
     static let daysTrackedKey = "days_tracked"
     static let historyKey = "usage_history"

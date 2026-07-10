@@ -1,6 +1,6 @@
 ---
 name: project-wasted
-description: Wasted — iOS screen time awareness app. Dynamic Island rendering bug SOLVED 2026-07-09 (stale local-fallback provisioning profile). Live Activity lifecycle redesigned: one persistent daily activity, adaptive tick cap, real app names via Label(token). Next: device verification of app names, then App Store groundwork.
+description: Wasted — iOS screen time awareness app. Dynamic Island renders (2026-07-09 signing fix). Island shows a name-free daily total (app name impossible there). BIGGEST OPEN BUG 2026-07-10 — the DeviceActivityMonitor extension can't update the Live Activity (Activity.activities empty cross-process), so the island total doesn't tick live. Real app names now work IN-APP via Label(token). See docs/open-problems.md.
 metadata:
   node_type: memory
   type: project
@@ -14,6 +14,36 @@ metadata:
 **GitHub:** https://github.com/singhsanskar202/wasted (branch `fable/mirror-polish`)
 **Local project:** `/Users/sanskarsingh/Documents/wasted/Wasted/`
 **Device under test:** "Sanskar's iphone", iPhone 15, iOS 26.5 (build 23F77), devicectl id `9B8A2D59-C282-5C05-A501-51C47D3C724E`, UDID `00008120-001E19A93C12601E`.
+
+---
+
+## ⚠️ 2026-07-10 — where things stand (READ docs/open-problems.md first)
+
+Full prioritized list lives in `docs/open-problems.md`. The load-bearing new facts:
+
+- **The extension CANNOT update the main app's Live Activity.** `DeviceActivityMonitor`
+  runs in a separate process where `Activity<TimeTrackerAttributes>.activities` is
+  **empty**, so threshold-time `update()` calls no-op (device log: `activities=0` →
+  `NO activity to update`). This — not the earlier fire-and-forget theory — is the real
+  "timer stuck" cause. A poll/retry (wait for `.activities` to sync in the fresh
+  extension process) is deployed but UNTESTED. If it fails, the only real-time path is
+  ActivityKit **push** updates (needs a server); otherwise the island updates only on
+  main-app foreground. `LiveActivityManager.log()` writes to App Group key `debug_la` —
+  pull it via devicectl to see the chain. Keep it until this is fixed.
+- **Island shows a name-free TOTAL** (all tracked apps summed), ticking via
+  `Text(timerInterval:)`. App name/icon is IMPOSSIBLE in the Live Activity (system
+  renderer redacts `Label(token)`; `localizedDisplayName` nil; never a String). Do not
+  retry.
+- **Real app names DO work in the app's own foreground screens** via `Label(token)` —
+  confirmed on device (Instagram/Telegram render correctly in the receipt). Wired through
+  `Wasted/Home/TrackedAppLabel.swift` (reads `app_tokens` index→ApplicationToken map).
+  Gotcha: `Label(token)` is greedy-vertical — needs `.fixedSize(horizontal: false,
+  vertical: true)` (fixing BOTH axes truncates the name; no fixedSize = giant row height).
+  Used in `ReceiptView` and `DangerZonesCard`. Tokens stored again by `ActivityScheduler`
+  with a **deterministic** sort (encoded-token bytes, since `localizedDisplayName` nil
+  makes a name sort unstable) so index↔app is stable across `display_names`/events/tokens.
+- **Known bug:** danger-zones card repeats the same apps in every zone — `topAppIndices`
+  uses day-level totals for every zone (no per-app-per-hour data). See P2.
 
 ---
 

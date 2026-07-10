@@ -1,10 +1,13 @@
 import ActivityKit
-import FamilyControls
-import ManagedSettings
 import SwiftUI
-import UIKit
 import WidgetKit
 
+// The island shows the total time wasted today, ticking live. It deliberately
+// does NOT name the app: Screen Time never exposes the real app name/icon
+// outside the app's own authorized UI (localizedDisplayName is nil, and
+// Label(token) renders a redaction placeholder anywhere it's rasterized or
+// hosted by a system process like the Live Activity renderer). The total is
+// the product anyway — "you can't unsee a number."
 struct TimeTrackerWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: TimeTrackerAttributes.self) { context in
@@ -14,7 +17,7 @@ struct TimeTrackerWidget: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    AppNameText(context: context)
+                    Text("wasted")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.white)
                         .padding(.leading, 8)
@@ -45,32 +48,6 @@ struct TimeTrackerWidget: Widget {
                     .foregroundStyle(.white)
             }
         }
-    }
-}
-
-// The real app name is only resolvable by Apple's own Label(token) view —
-// token.localizedDisplayName returns nil and the name is never available as
-// a String (FamilyControls privacy boundary). Falls back to the stored
-// generic name ("App 0") when no token is available.
-private struct AppNameText: View {
-    let context: ActivityViewContext<TimeTrackerAttributes>
-
-    var body: some View {
-        if let token = Self.token(for: context.state.appBundleId) {
-            Label(token)
-                .labelStyle(.titleOnly)
-        } else {
-            Text(context.state.appName)
-        }
-    }
-
-    private static func token(for appIndex: String) -> ApplicationToken? {
-        guard
-            let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID),
-            let data = defaults.data(forKey: AppGroupKeys.appTokensKey),
-            let tokens = try? JSONDecoder().decode([String: ApplicationToken].self, from: data)
-        else { return nil }
-        return tokens[appIndex]
     }
 }
 
@@ -125,9 +102,14 @@ private struct LockScreenBannerView: View {
     var body: some View {
         let confirmedSeconds = context.state.lastUpdatedTotalSeconds
         HStack(spacing: 12) {
-            AppNameText(context: context)
-                .font(.headline)
-                .foregroundStyle(.white)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("wasted")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                Text("today")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.white.opacity(0.5))
+            }
 
             Spacer()
 

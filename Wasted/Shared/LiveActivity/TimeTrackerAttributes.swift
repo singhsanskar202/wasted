@@ -8,9 +8,7 @@ import Foundation
 struct TimeTrackerAttributes: ActivityAttributes {
     struct ContentState: Codable, Hashable {
         // accumulatedStart = Date() - totalSecondsToday
-        // Text(accumulatedStart, style: .timer) ticks live and shows total time
-        let appBundleId: String
-        let appName: String
+        // Text(timerInterval:) from here ticks live and shows total time.
         let accumulatedStart: Date
         // Total confirmed by the last threshold event. Shown frozen once the
         // activity goes stale (no thresholds firing = user left tracked apps),

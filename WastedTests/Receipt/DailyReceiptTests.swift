@@ -23,7 +23,7 @@ final class DailyReceiptTests: XCTestCase {
             usage: usage(seconds: ["0": 600, "1": 0]),
             displayNames: [:]
         )
-        XCTAssertEqual(receipt.items, [DailyReceipt.Item(name: "app 0", seconds: 600)])
+        XCTAssertEqual(receipt.items, [DailyReceipt.Item(index: "0", name: "app 0", seconds: 600)])
     }
 
     func test_percentOfAwakeDay_is20PercentFor3h12m() {

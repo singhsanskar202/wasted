@@ -1,40 +1,29 @@
 import ActivityKit
 import SwiftUI
-import UIKit
 import WidgetKit
 
-// TEMPORARY diagnostic — proves whether the system is actually invoking
-// this extension's rendering code at all, as opposed to a request/entitlement
-// problem upstream. Remove once Live Activity rendering is confirmed working.
-private func logRender(_ tag: String) {
-    guard let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID) else { return }
-    let entry = "\(Date()): \(tag)"
-    let previous = (defaults.string(forKey: "debug_render_log") ?? "")
-        .components(separatedBy: "\n---\n")
-    let combined = ([entry] + previous).prefix(10).joined(separator: "\n---\n")
-    defaults.set(combined, forKey: "debug_render_log")
-}
-
+// The island shows the total time wasted today, ticking live. It deliberately
+// does NOT name the app: Screen Time never exposes the real app name/icon
+// outside the app's own authorized UI (localizedDisplayName is nil, and
+// Label(token) renders a redaction placeholder anywhere it's rasterized or
+// hosted by a system process like the Live Activity renderer). The total is
+// the product anyway — "you can't unsee a number."
 struct TimeTrackerWidget: Widget {
     var body: some WidgetConfiguration {
-        logRender("TimeTrackerWidget.body evaluated")
-        return ActivityConfiguration(for: TimeTrackerAttributes.self) { context in
+        ActivityConfiguration(for: TimeTrackerAttributes.self) { context in
             LockScreenBannerView(context: context)
                 .activityBackgroundTint(Color.black)
                 .activitySystemActionForegroundColor(Color.white)
         } dynamicIsland: { context in
-            logRender("dynamicIsland closure evaluated")
-            return DynamicIsland {
+            DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    let _ = logRender("expandedRegion.leading rendered")
-                    Text(context.attributes.appName)
+                    Text("wasted")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.white)
                         .padding(.leading, 8)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text(islandTime(context))
-                        .font(.system(size: 20, weight: .bold))
+                    TickingTimeText(context: context, fontSize: 20, weight: .bold)
                         .foregroundStyle(.white)
                         .padding(.trailing, 8)
                 }
@@ -45,26 +34,63 @@ struct TimeTrackerWidget: Widget {
                         .padding(.bottom, 4)
                 }
             } compactLeading: {
-                let _ = logRender("compactLeading rendered")
                 Text("W")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: 14, weight: .bold, design: .serif))
+                    .italic()
                     .foregroundStyle(.white)
             } compactTrailing: {
-                let _ = logRender("compactTrailing rendered")
-                Text(islandTime(context))
-                    .font(.system(size: 13, weight: .semibold))
+                TickingTimeText(context: context, fontSize: 13, weight: .semibold, compact: true)
                     .foregroundStyle(.white)
             } minimal: {
-                let _ = logRender("minimal rendered")
                 Text("W")
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.system(size: 12, weight: .bold, design: .serif))
+                    .italic()
                     .foregroundStyle(.white)
             }
         }
     }
+}
 
-    private func islandTime(_ context: ActivityViewContext<TimeTrackerAttributes>) -> String {
-        AppGroupKeys.formattedTime(from: context.state.accumulatedStart).text
+// Ticks only while threshold events prove the user is inside a tracked app
+// (isLive), and even then only up to capSeconds past the last confirmed
+// total — there is no "user left the app" signal, so the cap bounds how far
+// the counter can run past reality before freezing. Static and exact
+// otherwise; dimmed once the activity is stale.
+// Text(timerInterval:) instead of Text(_:style:.timer): the style variant
+// both freezes intermittently in Live Activities and greedily stretches the
+// compact island to full width.
+private struct TickingTimeText: View {
+    let context: ActivityViewContext<TimeTrackerAttributes>
+    let fontSize: CGFloat
+    let weight: Font.Weight
+    // Compact island slots must use a fixed width — the timer Text's
+    // intrinsic size is greedy and stretches the whole island otherwise.
+    var compact = false
+
+    var body: some View {
+        if context.state.isLive && !context.isStale {
+            Text(
+                timerInterval: context.state.accumulatedStart...Date(
+                    timeInterval: Double(context.state.lastUpdatedTotalSeconds + context.state.capSeconds),
+                    since: context.state.accumulatedStart
+                ),
+                countsDown: false,
+                showsHours: showsHours
+            )
+            .font(.system(size: fontSize, weight: weight))
+            .monospacedDigit()
+            .multilineTextAlignment(.trailing)
+            .minimumScaleFactor(0.7)
+            .frame(width: compact ? (showsHours ? 62 : 44) : nil)
+        } else {
+            Text(AppGroupKeys.formattedDuration(context.state.lastUpdatedTotalSeconds))
+                .font(.system(size: fontSize, weight: weight))
+                .opacity(context.isStale ? 0.55 : 1.0)
+        }
+    }
+
+    private var showsHours: Bool {
+        context.state.lastUpdatedTotalSeconds >= 3600
     }
 }
 
@@ -74,23 +100,25 @@ private struct LockScreenBannerView: View {
     let context: ActivityViewContext<TimeTrackerAttributes>
 
     var body: some View {
-        let _ = logRender("LockScreenBannerView.body rendered")
-        let (text, isAtLeast1Hour) = AppGroupKeys.formattedTime(from: context.state.accumulatedStart)
-
+        let confirmedSeconds = context.state.lastUpdatedTotalSeconds
         HStack(spacing: 12) {
-            Text(context.attributes.appName)
-                .font(.headline)
-                .foregroundStyle(.white)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("wasted")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                Text("today")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.white.opacity(0.5))
+            }
 
             Spacer()
 
             VStack(alignment: .trailing, spacing: 2) {
-                Text(text)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(isAtLeast1Hour ? .red : Color.white.opacity(0.75))
+                TickingTimeText(context: context, fontSize: 15, weight: .semibold)
+                    .foregroundStyle(confirmedSeconds >= 3600 ? .red : Color.white.opacity(0.75))
 
-                if text != "0m" {
-                    Text("\(text) you won't get back.")
+                if confirmedSeconds > 0 {
+                    Text("\(AppGroupKeys.formattedDuration(confirmedSeconds)) you won't get back.")
                         .font(.caption)
                         .foregroundStyle(Color.white.opacity(0.5))
                 }

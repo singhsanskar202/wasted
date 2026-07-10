@@ -4,7 +4,8 @@ import Foundation
 // share of the user's waking day (16h) it consumed.
 struct DailyReceipt: Equatable {
     struct Item: Equatable {
-        let name: String
+        let index: String   // app index; the view resolves the real name via Label(token)
+        let name: String    // generic fallback ("app N") for non-UI contexts
         let seconds: Int
     }
 
@@ -21,7 +22,7 @@ struct DailyReceipt: Equatable {
         var items: [Item] = []
         for (appIndex, seconds) in usage.seconds where seconds > 0 {
             let name = displayNames[appIndex] ?? "app \(appIndex)"
-            items.append(Item(name: name, seconds: seconds))
+            items.append(Item(index: appIndex, name: name, seconds: seconds))
         }
         items.sort { lhs, rhs in
             if lhs.seconds == rhs.seconds { return lhs.name < rhs.name }

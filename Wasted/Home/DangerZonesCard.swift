@@ -18,6 +18,9 @@ struct DangerZonesCard: View {
                 emptyState
             } else {
                 zoneList
+                if !result.topAppIndices.isEmpty {
+                    topAppsRow
+                }
             }
             verdictBanner
         }
@@ -145,16 +148,9 @@ struct DangerZonesCard: View {
     private func zoneRow(_ zone: DangerZone) -> some View {
         HStack(spacing: 10) {
             pill(for: zone.level)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(InsightEngine.timeRangeLabel(start: zone.startHour, end: zone.endHour))
-                    .font(.system(size: 12))
-                    .foregroundStyle(Color(white: 0.65))
-                if !zone.appNames.isEmpty {
-                    Text(zone.appNames.joined(separator: " · "))
-                        .font(.system(size: 11))
-                        .foregroundStyle(Color(white: 0.5))
-                }
-            }
+            Text(InsightEngine.timeRangeLabel(start: zone.startHour, end: zone.endHour))
+                .font(.system(size: 12))
+                .foregroundStyle(Color(white: 0.65))
             Spacer()
             Text(formatted(zone.seconds))
                 .font(.system(size: 12, design: .monospaced))
@@ -164,6 +160,29 @@ struct DangerZonesCard: View {
         .padding(.horizontal, 12)
         .background(Color(white: 0.08))
         .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    // We can't attribute apps to individual zones (only per-hour totals are
+    // stored), so the day's top apps are shown once instead of per zone.
+    private var topAppsRow: some View {
+        HStack(spacing: 6) {
+            Text("TOP APPS")
+                .font(.system(size: 10, weight: .semibold))
+                .tracking(1.5)
+                .foregroundStyle(Color(white: 0.4))
+            ForEach(Array(result.topAppIndices.enumerated()), id: \.offset) { pair in
+                if pair.offset > 0 {
+                    Text("·").foregroundStyle(Color(white: 0.35))
+                }
+                TrackedAppLabel(index: pair.element, showsIcon: true)
+            }
+            Spacer()
+        }
+        .font(.system(size: 11))
+        .foregroundStyle(Color(white: 0.5))
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
+        .padding(.bottom, 12)
     }
 
     private func pill(for level: DangerZone.Level) -> some View {

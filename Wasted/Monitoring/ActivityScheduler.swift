@@ -41,16 +41,24 @@ final class ActivityScheduler: ObservableObject {
         center.stopMonitoring()
         guard !selection.applications.isEmpty else { return }
 
-        let tokens = selection.applications.sorted {
-            $0.localizedDisplayName ?? "" < $1.localizedDisplayName ?? ""
+        // Deterministic order: localizedDisplayName is nil on-device, so a
+        // name sort is unstable and the index↔app mapping would drift between
+        // launches. Sort by encoded token bytes instead — same set always
+        // yields the same indices, keeping events, display names, and the
+        // token map in agreement.
+        let tokens = selection.applications.sorted { a, b in
+            Self.tokenSortKey(a) < Self.tokenSortKey(b)
         }
 
         var displayNames: [String: String] = [:]
-        for (index, token) in tokens.enumerated() {
-            displayNames["\(index)"] = token.localizedDisplayName ?? "App \(index)"
+        var tokensByIndex: [String: ApplicationToken] = [:]
+        for (index, app) in tokens.enumerated() {
+            displayNames["\(index)"] = app.localizedDisplayName ?? "App \(index)"
+            if let token = app.token { tokensByIndex["\(index)"] = token }
         }
+        persistSelection(selection)
         storeDisplayNames(displayNames)
-        saveIcons(for: tokens)
+        storeTokens(tokensByIndex)
 
         var events: [DeviceActivityEvent.Name: DeviceActivityEvent] = [:]
 
@@ -80,19 +88,28 @@ final class ActivityScheduler: ObservableObject {
 
     // MARK: - Private
 
-    private func saveIcons(for apps: [Application]) {
-        guard let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID) else { return }
-        for app in apps {
-            guard let token = app.token,
-                  let name = app.localizedDisplayName,
-                  !name.isEmpty else { continue }
-            let label = Label(token)
-            let renderer = ImageRenderer(content: label.frame(width: 60, height: 60))
-            renderer.scale = 2.0
-            guard let uiImage = renderer.uiImage,
-                  let pngData = uiImage.pngData() else { continue }
-            defaults.set(pngData, forKey: AppGroupKeys.appIconKey(for: name))
-        }
+    // Persist the raw selection so tracked apps survive relaunches and can be
+    // rebuilt/re-picked. Previously onboarding's one-time startMonitoring was
+    // the only place it was handled and nothing was saved.
+    private func persistSelection(_ selection: FamilyActivitySelection) {
+        guard
+            let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID),
+            let data = try? JSONEncoder().encode(selection)
+        else { return }
+        defaults.set(data, forKey: AppGroupKeys.trackedSelectionKey)
+    }
+
+    private func storeTokens(_ tokensByIndex: [String: ApplicationToken]) {
+        guard
+            let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID),
+            let data = try? JSONEncoder().encode(tokensByIndex)
+        else { return }
+        defaults.set(data, forKey: AppGroupKeys.appTokensKey)
+    }
+
+    private static func tokenSortKey(_ app: Application) -> String {
+        guard let token = app.token, let data = try? JSONEncoder().encode(token) else { return "" }
+        return data.base64EncodedString()
     }
 
     private func storeDisplayNames(_ names: [String: String]) {

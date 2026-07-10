@@ -11,7 +11,6 @@ struct DangerZone: Identifiable, Equatable {
     let endHour: Int       // exclusive, e.g. startHour=21 endHour=23 → "9pm–11pm"
     let level: Level
     let seconds: Int
-    let appNames: [String] // top apps in this window
 }
 
 struct WeeklyInsight: Equatable {
@@ -40,6 +39,10 @@ struct InsightResult {
     let verdictLine: String
     let tone: Tone
     let weekly: WeeklyInsight?                // nil until 7 days of history
+    // Day-level top-app indices (UI resolves real names via Label(token)).
+    // We only store per-hour totals, not per-app-per-hour, so apps can't be
+    // attributed to individual zones — surface them once for the whole day.
+    let topAppIndices: [String]
 }
 
 // MARK: - Engine
@@ -67,22 +70,31 @@ enum InsightEngine {
         let segments = today.hourly.map { zoneLevel(seconds: $0) }
 
         // Merge consecutive same-level segments into DangerZone blocks
-        let zones = buildZones(from: today.hourly, displayNames: displayNames, appSeconds: today.seconds)
+        let zones = buildZones(from: today.hourly)
 
         // Weekly insight (only when we have ≥7 history entries)
         let weekly = history.count >= 7 ? buildWeekly(history: history) : nil
+
+        // Day-level top apps (per-zone attribution is impossible — see InsightResult)
+        let topApps = topAppIndices(appSeconds: today.seconds, limit: 2)
+
+        // Every rule returns the same zones/segments/weekly — only the verdict varies.
+        func verdict(_ line: String, tone: InsightResult.Tone) -> InsightResult {
+            InsightResult(
+                zones: zones,
+                timelineSegments: segments,
+                verdictLine: line,
+                tone: tone,
+                weekly: weekly,
+                topAppIndices: topApps
+            )
+        }
 
         // --- Rule engine (priority order, first match wins) ---
 
         // 1. Nothing used yet today
         if totalToday == 0 {
-            return InsightResult(
-                zones: zones,
-                timelineSegments: segments,
-                verdictLine: "Clean so far. Come back tonight.",
-                tone: .positive,
-                weekly: weekly
-            )
+            return verdict("Clean so far. Come back tonight.", tone: .positive)
         }
 
         // 2. Positive: huge drop vs yesterday (>30%)
@@ -90,36 +102,18 @@ enum InsightEngine {
            yTotal > 0,
            Double(totalToday) < Double(yTotal) * (1 - trendThreshold * 2) {
             let pct = Int(round((1 - Double(totalToday) / Double(yTotal)) * 100))
-            return InsightResult(
-                zones: zones,
-                timelineSegments: segments,
-                verdictLine: "\(pct)% less than yesterday. Actual progress.",
-                tone: .positive,
-                weekly: weekly
-            )
+            return verdict("\(pct)% less than yesterday. Actual progress.", tone: .positive)
         }
 
         // 3. Positive: a peak zone from yesterday is now clean
         let yesterdayPeakHour = yesterday.flatMap { peakHour(in: $0.hourly) }
         if let ph = yesterdayPeakHour, today.hourly[ph] == 0 {
-            return InsightResult(
-                zones: zones,
-                timelineSegments: segments,
-                verdictLine: "You skipped the \(hourLabel(ph)) habit today.",
-                tone: .positive,
-                weekly: weekly
-            )
+            return verdict("You skipped the \(hourLabel(ph)) habit today.", tone: .positive)
         }
 
         // 4. Positive: under 1 hour total (< 3600s)
         if totalToday < 3600 {
-            return InsightResult(
-                zones: zones,
-                timelineSegments: segments,
-                verdictLine: "Under an hour total. That's rare.",
-                tone: .positive,
-                weekly: weekly
-            )
+            return verdict("Under an hour total. That's rare.", tone: .positive)
         }
 
         // 5. Warning: single zone dominates (>50% of total)
@@ -129,25 +123,13 @@ enum InsightEngine {
            totalToday > 0,
            Double(dominantZone.seconds) / Double(totalToday) > 0.5 {
             let label = timeRangeLabel(start: dominantZone.startHour, end: dominantZone.endHour)
-            return InsightResult(
-                zones: zones,
-                timelineSegments: segments,
-                verdictLine: "Kill the \(label) zone and you cut today's waste in half.",
-                tone: .warning,
-                weekly: weekly
-            )
+            return verdict("Kill the \(label) zone and you cut today's waste in half.", tone: .warning)
         }
 
         // 6. Warning: multiple danger zones
         let dangerCount = zones.filter { $0.level == .danger }.count
         if dangerCount >= 3 {
-            return InsightResult(
-                zones: zones,
-                timelineSegments: segments,
-                verdictLine: "\(dangerCount) danger zones. No clean run longer than \(streak)h.",
-                tone: .warning,
-                weekly: weekly
-            )
+            return verdict("\(dangerCount) danger zones. No clean run longer than \(streak)h.", tone: .warning)
         }
 
         // 7. Warning: slightly worse than yesterday (>15%)
@@ -155,57 +137,27 @@ enum InsightEngine {
            yTotal > 0,
            Double(totalToday) > Double(yTotal) * (1 + trendThreshold) {
             let pct = Int(round((Double(totalToday) / Double(yTotal) - 1) * 100))
-            return InsightResult(
-                zones: zones,
-                timelineSegments: segments,
-                verdictLine: "\(pct)% more than yesterday. Trend's going the wrong way.",
-                tone: .warning,
-                weekly: weekly
-            )
+            return verdict("\(pct)% more than yesterday. Trend's going the wrong way.", tone: .warning)
         }
 
         // 8. Positive: longest clean streak ≥ 4 hours (only if no warnings fired)
         if streak >= 4 {
-            return InsightResult(
-                zones: zones,
-                timelineSegments: segments,
-                verdictLine: "\(streak)h clean streak so far. Don't break it.",
-                tone: .neutral,
-                weekly: weekly
-            )
+            return verdict("\(streak)h clean streak so far. Don't break it.", tone: .neutral)
         }
 
         // 9. Neutral: scattered usage, no single actionable zone
         if zones.filter({ $0.level != .clean }).count > 4 {
-            return InsightResult(
-                zones: zones,
-                timelineSegments: segments,
-                verdictLine: "Usage is scattered. No single zone to cut — reduce across the board.",
-                tone: .neutral,
-                weekly: weekly
-            )
+            return verdict("Usage is scattered. No single zone to cut — reduce across the board.", tone: .neutral)
         }
 
         // 10. Default: show the biggest zone
         if let top = zones.filter({ $0.level != .clean }).max(by: { $0.seconds < $1.seconds }) {
             let label = timeRangeLabel(start: top.startHour, end: top.endHour)
-            return InsightResult(
-                zones: zones,
-                timelineSegments: segments,
-                verdictLine: "\(label) is your biggest cost today.",
-                tone: .neutral,
-                weekly: weekly
-            )
+            return verdict("\(label) is your biggest cost today.", tone: .neutral)
         }
 
         // 11. Fallback
-        return InsightResult(
-            zones: zones,
-            timelineSegments: segments,
-            verdictLine: "Looking fine today.",
-            tone: .positive,
-            weekly: weekly
-        )
+        return verdict("Looking fine today.", tone: .positive)
     }
 
     // MARK: - Historical peak
@@ -287,11 +239,7 @@ enum InsightEngine {
 
     // MARK: - Zone building
 
-    private static func buildZones(
-        from hourly: [Int],
-        displayNames: [String: String],
-        appSeconds: [String: Int]
-    ) -> [DangerZone] {
+    private static func buildZones(from hourly: [Int]) -> [DangerZone] {
         guard hourly.count == 24 else { return [] }
 
         var zones: [DangerZone] = []
@@ -305,12 +253,9 @@ enum InsightEngine {
             }
             let secs = hourly[i..<j].reduce(0, +)
             if level != .clean || secs > 0 {
-                // Top apps for this window: proportional by their total day usage
-                let topApps = topAppNames(in: displayNames, appSeconds: appSeconds, limit: 2)
                 zones.append(DangerZone(
                     startHour: i, endHour: j,
-                    level: level, seconds: secs,
-                    appNames: topApps
+                    level: level, seconds: secs
                 ))
             }
             i = j
@@ -329,10 +274,10 @@ enum InsightEngine {
 
     // MARK: - Helpers
 
-    private static func topAppNames(in names: [String: String], appSeconds: [String: Int], limit: Int) -> [String] {
+    private static func topAppIndices(appSeconds: [String: Int], limit: Int) -> [String] {
         appSeconds.sorted { $0.value > $1.value }
             .prefix(limit)
-            .compactMap { names[$0.key] }
+            .map { $0.key }
     }
 
     private static func peakHour(in hourly: [Int]) -> Int? {

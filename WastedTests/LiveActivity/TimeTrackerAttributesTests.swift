@@ -5,18 +5,18 @@ final class TimeTrackerAttributesTests: XCTestCase {
 
     func test_contentState_encodeDecode_roundtrip() throws {
         let state = TimeTrackerAttributes.ContentState(
-            appBundleId: "com.instagram.instagrammobile",
-            appName: "Instagram",
             accumulatedStart: Date(timeIntervalSince1970: 1_748_800_000),
-            isActive: true
+            lastUpdatedTotalSeconds: 3600,
+            isLive: true,
+            capSeconds: 420
         )
 
         let data = try JSONEncoder().encode(state)
         let decoded = try JSONDecoder().decode(TimeTrackerAttributes.ContentState.self, from: data)
 
-        XCTAssertEqual(decoded.appBundleId, state.appBundleId)
-        XCTAssertEqual(decoded.appName, state.appName)
-        XCTAssertEqual(decoded.isActive, state.isActive)
+        XCTAssertEqual(decoded.lastUpdatedTotalSeconds, state.lastUpdatedTotalSeconds)
+        XCTAssertEqual(decoded.isLive, state.isLive)
+        XCTAssertEqual(decoded.capSeconds, state.capSeconds)
         XCTAssertEqual(
             decoded.accumulatedStart.timeIntervalSince1970,
             state.accumulatedStart.timeIntervalSince1970,

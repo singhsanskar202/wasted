@@ -1,4 +1,5 @@
 import Charts
+import Combine
 import FamilyControls
 import StoreKit
 import SwiftUI
@@ -22,6 +23,12 @@ struct HomeView: View {
     @State private var realityCheckHapticFired = false
 
     private let store = UsageStore()
+
+    // The extension writes usage to the App Group only at thresholds; without
+    // a poll the screen would only catch up on foreground. 5s keeps it close
+    // to live while Wasted is open (the underlying data still steps at
+    // thresholds, so this is as fresh as the OS makes usage available).
+    private let refreshTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
 
     private var heatmapDaysLeft: Int {
         max(0, 7 - store.loadHistory().count)
@@ -220,6 +227,10 @@ struct HomeView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
+            refresh()
+        }
+        .onReceive(refreshTimer) { _ in
+            guard scenePhase == .active else { return }
             refresh()
         }
         .sheet(isPresented: $showingReceipt, onDismiss: refresh) {

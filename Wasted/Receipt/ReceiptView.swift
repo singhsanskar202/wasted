@@ -58,9 +58,9 @@ struct ReceiptView: View {
 
     private var itemRows: some View {
         VStack(spacing: 14) {
-            ForEach(receipt.items, id: \.name) { item in
+            ForEach(receipt.items, id: \.index) { item in
                 HStack {
-                    Text(item.name.lowercased())
+                    TrackedAppLabel(index: item.index, fallback: item.name.lowercased(), showsIcon: true)
                         .font(.system(size: 15, weight: .light))
                         .foregroundStyle(Color.ink.opacity(0.75))
                     Spacer()
@@ -103,9 +103,9 @@ private struct DashedRule: View {
     ReceiptView(receipt: DailyReceipt(
         dateString: "2026-07-06",
         items: [
-            .init(name: "Instagram", seconds: 6120),
-            .init(name: "YouTube", seconds: 3480),
-            .init(name: "X", seconds: 1920),
+            .init(index: "0", name: "Instagram", seconds: 6120),
+            .init(index: "1", name: "YouTube", seconds: 3480),
+            .init(index: "2", name: "X", seconds: 1920),
         ],
         totalSeconds: 11520,
         percentOfAwakeDay: 20

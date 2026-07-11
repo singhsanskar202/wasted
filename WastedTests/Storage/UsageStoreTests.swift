@@ -63,4 +63,26 @@ final class UsageStoreTests: XCTestCase {
         XCTAssertNil(sut.activeAppBundleId())
         XCTAssertNil(sut.activeSessionStart())
     }
+
+    // MARK: - Combined total
+
+    func test_combinedSeconds_roundtrip() {
+        sut.setCombinedSecondsToday(1500)
+        XCTAssertEqual(sut.combinedSecondsToday(), 1500)
+    }
+
+    func test_combinedSeconds_zeroWhenDateIsStale() {
+        sut.setCombinedSecondsToday(1500)
+        sut.defaults.set("2020-01-01", forKey: AppGroupKeys.combinedSecondsDateKey)
+        XCTAssertEqual(sut.combinedSecondsToday(), 0)
+    }
+
+    func test_totalSecondsAllApps_takesLeadingSource() {
+        sut.addSeconds(600, for: "0")
+        sut.setCombinedSecondsToday(900)
+        XCTAssertEqual(sut.totalSecondsAllApps(), 900)
+
+        sut.addSeconds(600, for: "0")   // per-app sum now 1200, ahead of combined
+        XCTAssertEqual(sut.totalSecondsAllApps(), 1200)
+    }
 }

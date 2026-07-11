@@ -2,6 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Without this, ActivityKit is disabled in THIS process: Activity.activities
+	     is always empty here even while the main app's activity is live, so every
+	     threshold-driven island update silently fails ("NO activity after wait"). -->
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionPointIdentifier</key>

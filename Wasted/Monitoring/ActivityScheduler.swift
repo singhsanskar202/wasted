@@ -23,6 +23,24 @@ final class ActivityScheduler: ObservableObject {
         Array(stride(from: 130, through: 240, by: 10)) +
         Array(stride(from: 255, through: 480, by: 15))
 
+    // Bump whenever the shape of the event registration changes (threshold
+    // series, event flags…). Installed devices keep running the OLD schedule
+    // until startMonitoring re-runs — this re-registers on next foreground so
+    // an update takes effect without the user re-picking their apps.
+    static let registrationSchemaVersion = 2
+    private static let registrationVersionKey = "monitoring_schema_version"
+
+    func refreshRegistrationIfNeeded() {
+        guard
+            let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID),
+            defaults.integer(forKey: Self.registrationVersionKey) != Self.registrationSchemaVersion,
+            let data = defaults.data(forKey: AppGroupKeys.trackedSelectionKey),
+            let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: data),
+            !selection.applications.isEmpty
+        else { return }
+        startMonitoring(selection: selection)
+    }
+
     func requestAuthorization() async {
         do {
             try await AuthorizationCenter.shared.requestAuthorization(for: .individual)
@@ -62,15 +80,32 @@ final class ActivityScheduler: ObservableObject {
 
         var events: [DeviceActivityEvent.Name: DeviceActivityEvent] = [:]
 
+        // includesPastActivity everywhere: startMonitoring can re-run mid-day
+        // (selection edit, schema refresh) and thresholds must keep counting
+        // the whole day's usage, not restart from zero. Replayed events are
+        // deduped downstream (delta/high-water-mark checks in the extension).
         for (index, app) in tokens.enumerated() {
             guard let appToken = app.token else { continue }
             for minutes in Self.thresholdMinutes {
                 let name = DeviceActivityEvent.Name("\(index):\(minutes)")
                 events[name] = DeviceActivityEvent(
                     applications: [appToken],
-                    threshold: DateComponents(minute: minutes)
+                    threshold: DateComponents(minute: minutes),
+                    includesPastActivity: true
                 )
             }
+        }
+
+        // Combined series over ALL tracked apps — the island's minute-level
+        // heartbeat (see AppGroupKeys.totalThresholdMinutes).
+        let allTokens = Set(tokens.compactMap(\.token))
+        for minutes in AppGroupKeys.totalThresholdMinutes {
+            let name = DeviceActivityEvent.Name("\(AppGroupKeys.totalEventPrefix):\(minutes)")
+            events[name] = DeviceActivityEvent(
+                applications: allTokens,
+                threshold: DateComponents(minute: minutes),
+                includesPastActivity: true
+            )
         }
 
         let schedule = DeviceActivitySchedule(
@@ -79,7 +114,19 @@ final class ActivityScheduler: ObservableObject {
             repeats: true
         )
 
-        try? center.startMonitoring(.wastedDaily, during: schedule, events: events)
+        // DeviceActivity has an undocumented cap on registered events and
+        // startMonitoring fails as a whole — never swallow that silently or
+        // the app records nothing all day.
+        do {
+            try center.startMonitoring(.wastedDaily, during: schedule, events: events)
+            LiveActivityManager.log("monitoring started, \(events.count) events")
+            // Only a successful registration is current — on failure the
+            // version stays stale so the next foreground retries.
+            UserDefaults(suiteName: AppGroupKeys.appGroupID)?
+                .set(Self.registrationSchemaVersion, forKey: Self.registrationVersionKey)
+        } catch {
+            LiveActivityManager.log("startMonitoring FAILED (\(events.count) events): \(error)")
+        }
     }
 
     func stopMonitoring() {

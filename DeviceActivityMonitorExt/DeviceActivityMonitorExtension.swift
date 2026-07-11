@@ -39,17 +39,24 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
               minutes > 0
         else { return }
 
+        if parts[0] == AppGroupKeys.totalEventPrefix {
+            handleTotalThreshold(minutes: minutes)
+            return
+        }
+
         let appIndex = parts[0]
         let totalSeconds = minutes * 60
         let appName = resolveDisplayName(for: appIndex)
         LiveActivityManager.log("threshold fired \(event.rawValue) app=\(appIndex) min=\(minutes)")
 
         // Recording never stops — trial gating only affects what's surfaced.
+        // Hourly heatmap attribution deliberately NOT here: the combined
+        // "total:N" series covers the same usage at minute fidelity, and
+        // adding both would double count.
         let current = store.loadTodayUsage().totalSeconds(for: appIndex)
         let delta = totalSeconds > current ? totalSeconds - current : 0
         if delta > 0 {
             store.addSeconds(delta, for: appIndex)
-            store.addHourlySeconds(delta)
         }
 
         let trialState = TrialClock.state(firstLaunch: store.firstLaunchDate(), unlocked: store.isUnlocked())
@@ -62,9 +69,9 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             receiptScheduler.refresh(usage: store.loadTodayUsage(), displayNames: allDisplayNames())
         }
 
-        let totalMinutes = store.totalSecondsAllApps() / 60
+        let total = store.totalSecondsAllApps()
         Task {
-            try? await UNUserNotificationCenter.current().setBadgeCount(totalMinutes)
+            try? await UNUserNotificationCenter.current().setBadgeCount(total / 60)
         }
 
         WidgetCenter.shared.reloadAllTimelines()
@@ -78,7 +85,37 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             // system kills the callback mid-wait, only this (already-failing)
             // update is lost, never the nudge/receipt/badge work above.
             liveActivityManager.updateExistingAndWait(
-                totalSeconds: store.totalSecondsAllApps()
+                totalSeconds: total,
+                capSeconds: AppGroupKeys.staleSeconds(afterTotalSeconds: total)
+            )
+        }
+    }
+
+    // The combined series is the island's heartbeat: every minute of usage
+    // across all tracked apps lands here with the exact new total.
+    private func handleTotalThreshold(minutes: Int) {
+        let newTotal = minutes * 60
+        let stored = store.combinedSecondsToday()
+        // includesPastActivity can replay every already-passed threshold in a
+        // burst after a mid-day selection change — only the high-water mark
+        // does real work, so the burst costs almost nothing.
+        guard newTotal > stored else { return }
+        store.setCombinedSecondsToday(newTotal)
+        store.addHourlySeconds(newTotal - stored)
+        LiveActivityManager.log("total threshold \(minutes)m")
+
+        let total = store.totalSecondsAllApps()
+        Task {
+            try? await UNUserNotificationCenter.current().setBadgeCount(total / 60)
+        }
+        WidgetCenter.shared.reloadAllTimelines()
+
+        let trialState = TrialClock.state(firstLaunch: store.firstLaunchDate(), unlocked: store.isUnlocked())
+        if trialState != .expired {
+            // Blocking and last, same as the per-app path.
+            liveActivityManager.updateExistingAndWait(
+                totalSeconds: total,
+                capSeconds: AppGroupKeys.staleSeconds(afterTotalSeconds: total)
             )
         }
     }

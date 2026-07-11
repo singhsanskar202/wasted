@@ -97,6 +97,7 @@
 		6953DA162FC5E0B500D38AF0 /* Exceptions for "Wasted" folder in "LiveActivityExtExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Shared/EquivalentTaskMapper.swift,
 				Shared/LiveActivity/TimeTrackerAttributes.swift,
 				Shared/Models/AppGroupKeys.swift,
 			);
@@ -562,6 +563,7 @@
 				DEVELOPMENT_TEAM = ZZZ87SSQ8S;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -596,6 +598,7 @@
 				DEVELOPMENT_TEAM = ZZZ87SSQ8S;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;

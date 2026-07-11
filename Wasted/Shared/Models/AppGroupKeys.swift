@@ -15,6 +15,41 @@ enum AppGroupKeys {
     static let historyKey = "usage_history"
     static let nudgeRecordsKey = "nudge_records"
 
+    // MARK: - Combined total series
+    // There is no "app opened/closed" signal on iOS — the island can only be
+    // corrected when a DeviceActivity threshold fires. Per-app thresholds get
+    // sparse fast, so a second event series watches ALL tracked apps combined
+    // ("total:N") and fires every minute of combined usage. That series is
+    // what keeps the island and the home number fresh; per-app events are
+    // only for nudges and the per-app breakdown.
+    static let totalEventPrefix = "total"
+    static let combinedSecondsKey = "combined_seconds"
+    static let combinedSecondsDateKey = "combined_seconds_date"
+
+    // 1-min fidelity through 2h, 2-min to 4h, 5-min to 8h. The taper keeps the
+    // whole registration (this + per-app events) under DeviceActivity's
+    // undocumented event cap. 228 events.
+    static let totalThresholdMinutes: [Int] =
+        Array(1...120) +
+        Array(stride(from: 122, through: 240, by: 2)) +
+        Array(stride(from: 245, through: 480, by: 5))
+
+    // Staleness window for the island's number: while the user is inside a
+    // tracked app the next "total:N" event should land within one threshold
+    // gap plus a reporting margin. No event by then means they left the
+    // tracked apps — the (still exact) number dims to read as "not counting
+    // right now".
+    static let reportingMarginSeconds = 90
+    static let fallbackStaleSeconds = 600
+
+    static func staleSeconds(afterTotalSeconds total: Int) -> Int {
+        let minutes = total / 60
+        guard let next = totalThresholdMinutes.first(where: { $0 > minutes }) else {
+            return fallbackStaleSeconds
+        }
+        return min(next * 60 - total + reportingMarginSeconds, fallbackStaleSeconds)
+    }
+
     // The receipt measures against waking hours, not the full 24.
     static let awakeDayHours = 16
     static let receiptHour = 21

@@ -32,8 +32,28 @@ final class UsageStore {
         save(usage)
     }
 
+    // Headline total = whichever source is further ahead: the combined series
+    // updates every minute but a "total:N" event can be delivered late, while
+    // the per-app sum is coarse but independent. max() means neither lag can
+    // make the number go backwards.
     func totalSecondsAllApps() -> Int {
-        loadTodayUsage().seconds.values.reduce(0, +)
+        max(loadTodayUsage().seconds.values.reduce(0, +), combinedSecondsToday())
+    }
+
+    // MARK: - Combined total (all tracked apps)
+
+    // Written only by the extension's "total:N" threshold events. Day-scoped
+    // via a companion date key, so a stale value never leaks into a new day.
+    func combinedSecondsToday() -> Int {
+        guard defaults.string(forKey: AppGroupKeys.combinedSecondsDateKey) == DailyUsage.todayString() else {
+            return 0
+        }
+        return defaults.integer(forKey: AppGroupKeys.combinedSecondsKey)
+    }
+
+    func setCombinedSecondsToday(_ seconds: Int) {
+        defaults.set(seconds, forKey: AppGroupKeys.combinedSecondsKey)
+        defaults.set(DailyUsage.todayString(), forKey: AppGroupKeys.combinedSecondsDateKey)
     }
 
     // MARK: - Hourly

@@ -16,31 +16,37 @@ import Foundation
 // async methods.
 final class LiveActivityManager {
 
-    // TUNING KNOB. The island can't be updated from the background (the usage
-    // extension can't reach the activity, and push is impossible for Screen
-    // Time data), so it ticks optimistically from the last exact total set on
-    // app foreground. This caps how long it keeps ticking before freezing —
-    // during real tracked-app use the tick is exact (1s/1s), so this only
-    // bounds how far it can overcount while the user is idle. Raise for a more
-    // "alive" feel, lower to reduce idle overcount.
-    static let optimisticTickCapSeconds = 600
+    // TUNING KNOB. How long the island's minute display keeps self-advancing
+    // after the main app anchored it. Longer = stays alive through longer
+    // sessions without opening Wasted; shorter = less visible overcount when
+    // the user leaves tracked apps and the timer keeps running. Once it runs
+    // out, the display freezes, dims, and snaps back to the exact total.
+    static let optimisticTickCapSeconds = 900
 
-    func startOrUpdate(totalSeconds: Int, isLive: Bool) async {
-        let content = Self.makeContent(totalSeconds: totalSeconds, isLive: isLive)
+    func startOrUpdate(totalSeconds: Int, capSeconds: Int) async {
+        let content = Self.makeContent(totalSeconds: totalSeconds, capSeconds: capSeconds)
+        let today = Self.dayString()
         let activities = Activity<TimeTrackerAttributes>.activities
-        if let existing = activities.first {
+        // Yesterday's activity outlives midnight: the day rollover runs in the
+        // monitor extension, which cannot reach activities (platform rule), so
+        // its endAllActivitiesAndWait is a no-op. Replace anything from a
+        // previous day instead of updating it in place.
+        if let existing = activities.first, existing.attributes.day == today {
             for extra in activities.dropFirst() {
                 await extra.end(nil, dismissalPolicy: .immediate)
             }
             await existing.update(content)
-            Self.log("main updated id=\(existing.id) total=\(totalSeconds) isLive=\(isLive)")
+            Self.log("main updated id=\(existing.id) total=\(totalSeconds)")
         } else {
+            for stale in activities {
+                await stale.end(nil, dismissalPolicy: .immediate)
+            }
             let activity = try? Activity<TimeTrackerAttributes>.request(
-                attributes: TimeTrackerAttributes(day: Self.dayString()),
+                attributes: TimeTrackerAttributes(day: today),
                 content: content,
                 pushType: nil
             )
-            Self.log("main created id=\(activity?.id ?? "nil") total=\(totalSeconds) isLive=\(isLive)")
+            Self.log("main created id=\(activity?.id ?? "nil") total=\(totalSeconds) replaced=\(activities.count)")
         }
     }
 
@@ -48,17 +54,18 @@ final class LiveActivityManager {
     // create an activity (request → unsupportedTarget), so this only updates
     // an existing one; if none exists yet the main app will create it on its
     // next foreground.
-    func updateExistingAndWait(totalSeconds: Int) {
-        let content = Self.makeContent(totalSeconds: totalSeconds, isLive: true)
-        let completed = runBlocking(timeout: 12) {
-            // A freshly-spawned extension process has not yet synced the app's
-            // activity list from the system daemon, so .activities is empty for
-            // the first moments. Poll until it appears (up to ~5s; the caller
-            // runs this last, so a long wait can't starve other threshold work).
+    // KNOWN NON-FUNCTIONAL today: Activity.activities is always empty inside
+    // the DeviceActivityMonitor extension — ActivityKit only attaches to the
+    // main app process (verified on device, iOS 26; matches Apple forums).
+    // Kept because it costs ~1.5s, logs proof either way, and starts working
+    // by itself if Apple ever lifts the restriction.
+    func updateExistingAndWait(totalSeconds: Int, capSeconds: Int) {
+        let content = Self.makeContent(totalSeconds: totalSeconds, capSeconds: capSeconds)
+        let completed = runBlocking(timeout: 6) {
             let start = Date()
             var existing = Activity<TimeTrackerAttributes>.activities.first
             var tries = 0
-            while existing == nil && tries < 10 {
+            while existing == nil && tries < 3 {
                 try? await Task.sleep(nanoseconds: 500_000_000)
                 existing = Activity<TimeTrackerAttributes>.activities.first
                 tries += 1
@@ -96,23 +103,19 @@ final class LiveActivityManager {
 
     // MARK: - Private
 
-    private static func makeContent(totalSeconds: Int, isLive: Bool) -> ActivityContent<TimeTrackerAttributes.ContentState> {
-        let capSeconds = optimisticTickCapSeconds
+    private static func makeContent(totalSeconds: Int, capSeconds: Int) -> ActivityContent<TimeTrackerAttributes.ContentState> {
         let state = TimeTrackerAttributes.ContentState(
-            // accumulatedStart = now - totalSeconds, so Text(timerInterval:)
-            // shows totalSeconds and ticks up from there.
+            // accumulatedStart = now - totalSeconds, so the timer text reads
+            // as the running total.
             accumulatedStart: Date(timeIntervalSinceNow: -Double(totalSeconds)),
-            lastUpdatedTotalSeconds: totalSeconds,
-            isLive: isLive,
+            totalSeconds: totalSeconds,
             capSeconds: capSeconds
         )
-        // A live activity goes stale (dims, stops ticking) shortly after the
-        // tick cap, so leaving a tracked app reads as a frozen session within
-        // ~a threshold gap. A static (main-app) display is already exact, so
-        // it only dims after a long idle.
+        // Dim shortly after the self-advancing window runs out — the view
+        // swaps to the exact static total at the same moment.
         return ActivityContent(
             state: state,
-            staleDate: Date(timeIntervalSinceNow: isLive ? Double(capSeconds) + 30 : 3600)
+            staleDate: Date(timeIntervalSinceNow: Double(max(capSeconds, 60)) + 60)
         )
     }
 

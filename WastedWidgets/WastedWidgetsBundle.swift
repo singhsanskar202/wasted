@@ -2,7 +2,7 @@ import SwiftUI
 import WidgetKit
 
 @main
-struct WastedWidgetBundle: WidgetBundle {
+struct WastedWidgetsBundle: WidgetBundle {
     var body: some Widget {
         WastedScreenTimeWidget()
     }

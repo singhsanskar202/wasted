@@ -18,6 +18,8 @@ struct WastedTimelineProvider: TimelineProvider {
         completion(makeEntry())
     }
 
+    // Hourly backstop only — the real freshness comes from the monitor extension
+    // reloading timelines on every threshold crossing.
     func getTimeline(in context: Context, completion: @escaping (Timeline<ScreenTimeEntry>) -> Void) {
         let entry = makeEntry()
         let nextRefresh = Calendar.current.date(byAdding: .hour, value: 1, to: Date())!

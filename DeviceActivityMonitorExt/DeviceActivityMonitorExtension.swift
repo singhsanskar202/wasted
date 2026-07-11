@@ -78,16 +78,10 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
 
         if trialState != .expired {
             // The island shows the grand total across all tracked apps, not
-            // this one app's slice. Blocking: the extension is suspended the
-            // instant this callback returns, so a fire-and-forget async update
-            // would be dropped. Deliberately LAST — it may poll several seconds
-            // for .activities to sync into this fresh process, and if the
-            // system kills the callback mid-wait, only this (already-failing)
-            // update is lost, never the nudge/receipt/badge work above.
-            liveActivityManager.updateExistingAndWait(
-                totalSeconds: total,
-                capSeconds: AppGroupKeys.staleSeconds(afterTotalSeconds: total)
-            )
+            // this one app's slice. A no-op in practice — ActivityKit is
+            // unreachable from this process — so it stays LAST, after the work
+            // that does land (nudge, receipt, badge, widget).
+            liveActivityManager.updateExistingAndWait(totalSeconds: total)
         }
     }
 
@@ -113,10 +107,7 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         let trialState = TrialClock.state(firstLaunch: store.firstLaunchDate(), unlocked: store.isUnlocked())
         if trialState != .expired {
             // Blocking and last, same as the per-app path.
-            liveActivityManager.updateExistingAndWait(
-                totalSeconds: total,
-                capSeconds: AppGroupKeys.staleSeconds(afterTotalSeconds: total)
-            )
+            liveActivityManager.updateExistingAndWait(totalSeconds: total)
         }
     }
 

@@ -34,21 +34,11 @@ enum AppGroupKeys {
         Array(stride(from: 122, through: 240, by: 2)) +
         Array(stride(from: 245, through: 480, by: 5))
 
-    // Staleness window for the island's number: while the user is inside a
-    // tracked app the next "total:N" event should land within one threshold
-    // gap plus a reporting margin. No event by then means they left the
-    // tracked apps — the (still exact) number dims to read as "not counting
-    // right now".
-    static let reportingMarginSeconds = 90
-    static let fallbackStaleSeconds = 600
-
-    static func staleSeconds(afterTotalSeconds total: Int) -> Int {
-        let minutes = total / 60
-        guard let next = totalThresholdMinutes.first(where: { $0 > minutes }) else {
-            return fallbackStaleSeconds
-        }
-        return min(next * 60 - total + reportingMarginSeconds, fallbackStaleSeconds)
-    }
+    // How long the island's number reads as current. Only the main app can
+    // refresh it (the monitor extension can't reach ActivityKit), so the total
+    // is always exact-but-possibly-behind. Past this, the view dims — it is
+    // saying "this is a real number, and it is old", never "this is wrong".
+    static let confirmedFreshSeconds = 900
 
     // The receipt measures against waking hours, not the full 24.
     static let awakeDayHours = 16
@@ -74,8 +64,12 @@ enum AppGroupKeys {
         return "\(m)m"
     }
 
-    static func formattedTime(from accumulatedStart: Date) -> (text: String, isAtLeast1Hour: Bool) {
-        let seconds = max(0, Int(Date().timeIntervalSince(accumulatedStart)))
-        return (formattedDuration(seconds), seconds >= 3600)
+    // The island's format. Bare minutes under an hour ("47m"), h:mm past it
+    // ("2:50") — raw minutes past the hour ("170m") makes the reader do the
+    // division, and the compact island slot has no room for "2h 50m".
+    static func formattedClock(_ seconds: Int) -> String {
+        let minutes = max(0, seconds) / 60
+        guard minutes >= 60 else { return "\(minutes)m" }
+        return "\(minutes / 60):\(String(format: "%02d", minutes % 60))"
     }
 }

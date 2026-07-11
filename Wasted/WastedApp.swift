@@ -93,13 +93,10 @@ struct WastedApp: App {
         let trialState = TrialClock.state(firstLaunch: store.firstLaunchDate(), unlocked: store.isUnlocked())
         guard trialState != .expired else { return }
 
-        // Every anchor restarts the island's self-advancing window. capSeconds
-        // = 0 until there's real usage, so a fresh 0m island never fakes time.
-        let total = store.totalSecondsAllApps()
-        await LiveActivityManager().startOrUpdate(
-            totalSeconds: total,
-            capSeconds: total > 0 ? LiveActivityManager.optimisticTickCapSeconds : 0
-        )
+        // This is the ONLY process that can write to the island, so every run of
+        // it — foreground or BG refresh — is the island's one chance to catch up
+        // to the truth the extension has been recording all along.
+        await LiveActivityManager().startOrUpdate(totalSeconds: store.totalSecondsAllApps())
     }
 
     private func loadDisplayNames() -> [String: String] {

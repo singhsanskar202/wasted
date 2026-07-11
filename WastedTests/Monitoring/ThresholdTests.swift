@@ -51,22 +51,24 @@ final class ThresholdTests: XCTestCase {
         XCTAssertEqual(thresholds.count, 228)
     }
 
-    // MARK: - Staleness window
+    // MARK: - Island clock format
 
-    func test_staleSeconds_coversGapToNextThresholdPlusMargin() {
-        // At 5 min the next total threshold is 6 min: 60s away + margin.
-        XCTAssertEqual(AppGroupKeys.staleSeconds(afterTotalSeconds: 5 * 60), 60 + AppGroupKeys.reportingMarginSeconds)
-        // In the 2-min band (past 2h): 120s gap + margin.
-        XCTAssertEqual(AppGroupKeys.staleSeconds(afterTotalSeconds: 122 * 60), 120 + AppGroupKeys.reportingMarginSeconds)
-        // In the 5-min band (past 4h): 300s gap + margin.
-        XCTAssertEqual(AppGroupKeys.staleSeconds(afterTotalSeconds: 245 * 60), 300 + AppGroupKeys.reportingMarginSeconds)
+    func test_formattedClock_underAnHour_isBareMinutes() {
+        XCTAssertEqual(AppGroupKeys.formattedClock(0), "0m")
+        XCTAssertEqual(AppGroupKeys.formattedClock(47 * 60), "47m")
+        XCTAssertEqual(AppGroupKeys.formattedClock(59 * 60 + 59), "59m")
     }
 
-    func test_staleSeconds_fallsBackPastSeriesEnd() {
-        XCTAssertEqual(AppGroupKeys.staleSeconds(afterTotalSeconds: 480 * 60), AppGroupKeys.fallbackStaleSeconds)
+    func test_formattedClock_pastAnHour_isHoursAndPaddedMinutes() {
+        XCTAssertEqual(AppGroupKeys.formattedClock(3600), "1:00")
+        // The number that started all this: 170 minutes must read 2:50, not 170m.
+        XCTAssertEqual(AppGroupKeys.formattedClock(170 * 60), "2:50")
+        // Single-digit minutes must stay zero-padded, or "2:5" reads as 2.5 hours.
+        XCTAssertEqual(AppGroupKeys.formattedClock(125 * 60), "2:05")
     }
 
-    func test_staleSeconds_atZeroUsage_isOneGapPlusMargin() {
-        XCTAssertEqual(AppGroupKeys.staleSeconds(afterTotalSeconds: 0), 60 + AppGroupKeys.reportingMarginSeconds)
+    func test_formattedClock_floorsPartialMinutes_neverOverstates() {
+        // The island's promise is a true lower bound — round down, never up.
+        XCTAssertEqual(AppGroupKeys.formattedClock(119), "1m")
     }
 }

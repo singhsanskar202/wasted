@@ -38,14 +38,15 @@ struct RealityCheckView: View {
                 Text(check.deltaLine)
                     .font(.system(size: 17, weight: .regular, design: .serif))
                     .italic()
-                    // Red only for bad news. An accurate guess is not bad news.
-                    .foregroundStyle(check.underestimated ? Color.alarm : Color.inkQuiet)
+                    // Red only when the number beat your instinct — see
+                    // RealityCheck.isAlarming.
+                    .foregroundStyle(check.isAlarming ? Color.alarm : Color.inkQuiet)
                     .padding(.top, 14)
                     .opacity(revealed ? 1 : 0)
 
                 Spacer()
 
-                Text("your sense of it was wrong.\nthe number is the only thing that isn't.")
+                Text(check.closingLine)
                     .font(.system(size: 15, weight: .regular, design: .serif))
                     .italic()
                     .foregroundStyle(Color.ink.opacity(0.35))

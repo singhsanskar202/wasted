@@ -16,6 +16,18 @@ struct WastedApp: App {
     // discretion, so it's a safety net, not a cure: an app left unopened for
     // more than 8h will lose its island until it's next opened.
     static let bgRefreshID = "com.sanskar.Wasted.refresh"
+    static let bgRotateID = "com.sanskar.Wasted.rotate"
+
+    // SwiftUI's .backgroundTask only knows .appRefresh and URL sessions — there
+    // is no BGProcessingTask variant — so the nightly rotation has to be
+    // registered the old way, and BGTaskScheduler demands that happen before the
+    // app finishes launching. App.init() is early enough; a .task or .onAppear
+    // is not, and the registration would silently never fire.
+    init() {
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.bgRotateID, using: nil) { task in
+            Self.runRotation(task)
+        }
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -68,43 +80,83 @@ struct WastedApp: App {
                     usage: store.loadTodayUsage(),
                     displayNames: displayNames
                 )
-                Task { await refreshLiveActivity(store: store) }
+                Task { await Self.refreshLiveActivity(store: store) }
             case .background:
                 scheduleAppRefresh()
+                Self.scheduleNightlyRotation()
             default:
                 break
             }
         }
         .backgroundTask(.appRefresh(Self.bgRefreshID)) {
+            LiveActivityManager.log("bg refresh GRANTED")
             await handleAppRefresh()
         }
     }
 
+    // Registered in init(), fired by iOS overnight. Must always call
+    // setTaskCompleted or the system stops granting the task entirely.
+    private static func runRotation(_ task: BGTask) {
+        let work = Task {
+            LiveActivityManager.log("bg rotation GRANTED")
+            scheduleNightlyRotation()          // chain tomorrow's
+            await refreshLiveActivity(store: UsageStore())
+            task.setTaskCompleted(success: true)
+        }
+        task.expirationHandler = {
+            work.cancel()
+            LiveActivityManager.log("bg rotation EXPIRED")
+            task.setTaskCompleted(success: false)
+        }
+    }
+
     // MARK: - Background refresh
+    //
+    // These exist so the island survives WITHOUT asking the user to come back.
+    // Only this process can create or rotate a Live Activity, and iOS culls one
+    // eight hours after creation — so something has to run. The alternative
+    // (a notification whose real purpose is "please open the app so our widget
+    // stays warm") would spend the user's attention on our plumbing, which is
+    // the exact behaviour this product exists to argue against.
 
     private func scheduleAppRefresh() {
         let request = BGAppRefreshTaskRequest(identifier: Self.bgRefreshID)
-        // Ask as early as iOS allows — each granted run re-anchors the island
-        // to the exact total and restarts its self-advancing window, so more
-        // grants = tighter island↔app sync. iOS budgets the actual cadence
-        // (a few per hour at best); asking early costs nothing.
+        // Ask as early as iOS allows. Each granted run is a chance to rotate the
+        // island before the 8h guillotine; iOS budgets the real cadence and
+        // asking early costs nothing.
         request.earliestBeginDate = Date(timeIntervalSinceNow: 5 * 60)
+        try? BGTaskScheduler.shared.submit(request)
+    }
+
+    // The 8-hour hole in a person's day is the night they spend asleep — which
+    // is exactly when iOS runs BGProcessingTask (it prefers idle, charging
+    // devices). A BGAppRefresh is short and rationed; this is the one background
+    // slot the system is actually generous with, and it lands precisely in the
+    // gap that had the island showing yesterday's total at 6am.
+    private static func scheduleNightlyRotation() {
+        let request = BGProcessingTaskRequest(identifier: Self.bgRotateID)
+        request.requiresNetworkConnectivity = false
+        // Not requiring power: a user who doesn't charge overnight still deserves
+        // a correct island in the morning. iOS will still favour idle/charging.
+        request.requiresExternalPower = false
+        // Just after midnight, so the run both rotates the activity and carries
+        // it into the new day.
+        request.earliestBeginDate = AppGroupKeys.nextMidnight().addingTimeInterval(15 * 60)
         try? BGTaskScheduler.shared.submit(request)
     }
 
     private func handleAppRefresh() async {
         scheduleAppRefresh()               // chain the next one
-        let store = UsageStore()
-        await refreshLiveActivity(store: store)
+        Self.scheduleNightlyRotation()
+        await Self.refreshLiveActivity(store: UsageStore())
     }
 
     // Activity.request() only succeeds from the main app process — the
     // DeviceActivityMonitor extension always gets .unsupportedTarget. So the
-    // main app both creates the daily activity and, on every foreground,
-    // refreshes it: pushing its stale date forward and correcting the total.
-    // Now that all ActivityKit calls are awaited (no racing fire-and-forget
-    // Tasks), running this on every foreground is safe.
-    private func refreshLiveActivity(store: UsageStore) async {
+    // main app both creates the daily activity and, on every run, rotates or
+    // refreshes it. Static because the overnight BGProcessingTask handler is
+    // registered in init() and has no instance to call through.
+    private static func refreshLiveActivity(store: UsageStore) async {
         let trialState = TrialClock.state(firstLaunch: store.firstLaunchDate(), unlocked: store.isUnlocked())
         guard trialState != .expired else { return }
 

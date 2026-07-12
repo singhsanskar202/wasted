@@ -6,11 +6,15 @@ struct WastedApp: App {
     @AppStorage("onboarding_complete") private var onboardingComplete = false
     @Environment(\.scenePhase) private var scenePhase
 
-    // iOS ends a Live Activity ~8h after its last update, and we can only
-    // update from this process (foreground or this background task). Touching
-    // the activity here resets that clock, so the island survives longer
-    // between app opens. iOS grants these on its own schedule (not guaranteed),
-    // so it's a best-effort extension, not a cure.
+    // iOS ends a Live Activity 8h after it was CREATED. Updating it does not
+    // reset that clock — this comment used to claim it did, which is what
+    // produced the "one activity, all day" design and the vanishing island.
+    // The only way to persist is to end the old activity and request a new one
+    // (LiveActivityPolicy.rotateAfter), and only THIS process can do either.
+    // So every run of the app — foreground or this background task — is a
+    // chance to rotate before the guillotine. iOS grants these at its own
+    // discretion, so it's a safety net, not a cure: an app left unopened for
+    // more than 8h will lose its island until it's next opened.
     static let bgRefreshID = "com.sanskar.Wasted.refresh"
 
     var body: some Scene {

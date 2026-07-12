@@ -1,46 +1,113 @@
 import ActivityKit
 import Foundation
 
-// Activity.request() can only succeed from the main app process — the
-// DeviceActivityMonitor extension always gets .unsupportedTarget. The main
-// app creates the single daily activity on foreground; after that, every
-// caller (extension included) updates that same activity in place, even when
-// the user switches tracked apps. Ending + recreating on app switch is what
-// used to strand the extension on the request path and kill the Island.
+// WHY THE ISLAND KEPT VANISHING.
 //
-// CRITICAL: the DeviceActivityMonitor extension is suspended the moment its
-// callback returns, so `Task { await activity.update() }` fire-and-forget is
-// dropped before it runs — that was the "stuck timer" bug. The *AndWait
-// methods block the callback on a semaphore until ActivityKit's async work
-// actually completes. The main app has a normal run loop and uses the plain
-// async methods.
+// iOS hard-caps a Live Activity at EIGHT HOURS from the moment it is created.
+// The system then ends it, leaves it on the Lock Screen for up to four more
+// hours, and removes it. Updating the activity does NOT extend that window —
+// there is no API that does. The old design ("one activity, created in the
+// morning, lives all day, kept fresh by updates") was never possible, and the
+// comment in WastedApp asserting that an update "resets that clock" was simply
+// wrong.
+//
+// Worse, an ended activity STAYS in Activity.activities for those last four
+// hours, with its `day` still matching today. The old code checked the day but
+// never the activityState, so it took the update branch and called update() on a
+// corpse — a no-op — and never called request(). That is why the island didn't
+// merely disappear: it never came back, not even when the app was reopened.
+//
+// The fix is ROTATION. We cannot extend an activity past eight hours, but we can
+// end one and request a fresh one, which starts a clean eight-hour window. Any
+// run of the main app (foreground or BG refresh) that finds an activity too old
+// or no longer updatable replaces it. For an app the user actually opens, that
+// keeps the island alive indefinitely.
+//
+// Activity.request() only succeeds in the main app process — the
+// DeviceActivityMonitor extension always gets .unsupportedTarget, and cannot
+// even see Activity.activities. So the main app is the only thing that can do
+// any of this.
+
+// The decision, extracted from ActivityKit so it can actually be tested —
+// Activity values cannot be constructed in a unit test.
+struct ActivitySnapshot: Equatable {
+    let id: String
+    let day: String
+    /// `.active` or `.stale`. An `.ended`/`.dismissed` activity still appears in
+    /// Activity.activities but silently swallows every update.
+    let isUpdatable: Bool
+    let startedAt: Date
+}
+
+enum LiveActivityDecision: Equatable {
+    case update(id: String)
+    case replace
+}
+
+enum LiveActivityPolicy {
+    // Rotate an hour before iOS's 8h guillotine. The margin matters: the app may
+    // not run again for a while, and an activity replaced at 7h59m would be dead
+    // before it was ever seen.
+    static let rotateAfter: TimeInterval = 7 * 3600
+
+    static func decide(
+        existing: [ActivitySnapshot],
+        today: String,
+        now: Date = Date()
+    ) -> LiveActivityDecision {
+        let usable = existing.first {
+            $0.day == today                                        // not yesterday's
+                && $0.isUpdatable                                  // not a corpse
+                && now.timeIntervalSince($0.startedAt) < rotateAfter  // not about to be culled
+        }
+        guard let usable else { return .replace }
+        return .update(id: usable.id)
+    }
+}
+
 final class LiveActivityManager {
 
     func startOrUpdate(totalSeconds: Int) async {
         let content = Self.makeContent(totalSeconds: totalSeconds)
         let today = Self.dayString()
         let activities = Activity<TimeTrackerAttributes>.activities
-        // Yesterday's activity outlives midnight: the day rollover runs in the
-        // monitor extension, which cannot reach activities (platform rule), so
-        // its endAllActivitiesAndWait is a no-op. Replace anything from a
-        // previous day instead of updating it in place.
-        if let existing = activities.first, existing.attributes.day == today {
-            for extra in activities.dropFirst() {
-                await extra.end(nil, dismissalPolicy: .immediate)
+
+        let decision = LiveActivityPolicy.decide(
+            existing: activities.map(Self.snapshot),
+            today: today
+        )
+
+        switch decision {
+        case .update(let id):
+            // End every other activity — a stale duplicate on the Lock Screen
+            // reads as a bug, and only one of them is the real count.
+            for other in activities where other.id != id {
+                await other.end(nil, dismissalPolicy: .immediate)
             }
-            await existing.update(content)
-            Self.log("main updated id=\(existing.id) total=\(totalSeconds)")
-        } else {
-            for stale in activities {
-                await stale.end(nil, dismissalPolicy: .immediate)
+            guard let target = activities.first(where: { $0.id == id }) else { return }
+            await target.update(content)
+            Self.log("main updated id=\(id) total=\(totalSeconds)")
+
+        case .replace:
+            for dead in activities {
+                await dead.end(nil, dismissalPolicy: .immediate)
             }
             let activity = try? Activity<TimeTrackerAttributes>.request(
-                attributes: TimeTrackerAttributes(day: today),
+                attributes: TimeTrackerAttributes(day: today, startedAt: Date()),
                 content: content,
                 pushType: nil
             )
             Self.log("main created id=\(activity?.id ?? "nil") total=\(totalSeconds) replaced=\(activities.count)")
         }
+    }
+
+    private static func snapshot(_ activity: Activity<TimeTrackerAttributes>) -> ActivitySnapshot {
+        ActivitySnapshot(
+            id: activity.id,
+            day: activity.attributes.day,
+            isUpdatable: activity.activityState == .active || activity.activityState == .stale,
+            startedAt: activity.attributes.startedAt
+        )
     }
 
     // Extension-safe: blocks until the update lands, since the extension is

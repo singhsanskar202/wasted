@@ -24,4 +24,9 @@ struct TimeTrackerAttributes: ActivityAttributes {
     }
 
     let day: String
+    // When this activity was created. iOS hard-caps a Live Activity at EIGHT
+    // HOURS from creation and updating it does NOT extend that — so the app has
+    // to know the activity's age to replace it before the system kills it.
+    // ActivityKit exposes no creation date, hence carrying our own.
+    let startedAt: Date
 }

@@ -41,11 +41,22 @@ struct WastedApp: App {
                 let store = UsageStore()
                 store.stampFirstLaunchIfNeeded()
                 #if targetEnvironment(simulator)
-                // DeviceActivity never records in the simulator — seed a
-                // realistic total so the island/lock screen render with real
-                // digits for visual verification.
+                // DeviceActivity never records in the simulator, so every
+                // usage-driven surface renders empty and can't be judged. Seed a
+                // realistically BURSTY day — the device logs showed real usage
+                // arrives in clumps, not a smooth curve — with one hour over the
+                // 1h mark, so the hour strip's single red bar can be verified as
+                // scarce rather than decorative.
                 if store.combinedSecondsToday() == 0 {
-                    store.setCombinedSecondsToday(118 * 60)
+                    let minutesByHour = [8: 6, 9: 12, 12: 20, 13: 15, 17: 9, 21: 62, 22: 21]
+                    var usage = store.loadTodayUsage()
+                    for (hour, minutes) in minutesByHour {
+                        usage.addHourly(minutes * 60, hour: hour)
+                    }
+                    let total = minutesByHour.values.reduce(0, +) * 60
+                    usage.add(seconds: total, for: "0")
+                    store.save(usage)
+                    store.setCombinedSecondsToday(total)
                 }
                 #endif
                 let displayNames = loadDisplayNames()

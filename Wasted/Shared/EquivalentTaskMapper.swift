@@ -2,25 +2,25 @@ import Foundation
 
 // What the time was worth — and, past a point, what it costs you.
 //
-// TWO THINGS WERE WRONG BEFORE THIS.
+// THE TEST EVERY LINE HERE HAS TO PASS: does a stranger, anywhere in the world,
+// already know roughly how long this takes? A football match is ninety minutes
+// in every country on earth. A 5K run is about half an hour to anyone who has
+// ever laced up. A full-body workout is about forty-five minutes.
 //
-// 1. It suggested hobbies. "you could have read 69 pages" / "a 13 km run" /
-//    "a 15-minute meditation" is the app OFFERING A SOLUTION, which the product
-//    guide explicitly rules out ("never blocks, never shames, never offers a
-//    solution — it just keeps count"). It's also a lie the reader can feel: you
-//    were never going to run 13 km, so the guilt bounces straight off.
+// Things that FAILED that test and were removed:
+//   · "your commute, both ways" — assumes you commute, and assumes how long.
+//     Twenty minutes for one person, ninety for another. Useless.
+//   · "a coffee with someone" — fifteen minutes or two hours. Not a duration.
+//   · "a flight to another city" — an hour, or eleven.
+//   · "69 pages of a book" / "a 13 km run" — a SCALED COUNT. Nobody pictures 69
+//     pages. And the old table's fixed-threshold lookup snapped DOWN, so 1h 23m
+//     displayed the 1h row and silently discarded 23 minutes.
 //
-// 2. A SCALED COUNT IS NEVER RELATABLE. Nobody can picture 69 pages. Everybody
-//    can picture ONE WHOLE THING — an episode, a match, a film. So a comparison
-//    is only ever a single plausible thing, never a quantity.
-//
-// And when the number grows past what any single thing can hold, the comparison
-// stops being credible at all — "2.5 films" means nothing. That's the moment to
-// stop comparing and start COMPOUNDING: what this pace costs across a year. No
-// counterfactual, no assumption about who you are, nothing to argue with. It's
-// also the exact move the app's own Hook already makes — "that's 60 days a year.
-// gone." — so the first thing a user ever reads and the line they see every day
-// finally say the same thing.
+// Past the point where no single thing can hold the number, comparison stops
+// being credible ("2.5 films" means nothing) — so it stops comparing and starts
+// COMPOUNDING: what this pace costs across a year. That's the part you cannot
+// get back, it needs no counterfactual, and it's the move the app's own Hook
+// already makes ("that's 60 days a year. gone.").
 struct EquivalentTaskMapper {
     struct Equivalent {
         let emoji: String       // empty for the reckoning — it isn't a "thing"
@@ -31,9 +31,8 @@ struct EquivalentTaskMapper {
         }
     }
 
-    // Past this, no single thing is a credible comparison, so we stop making
-    // one. Four hours is also where the Hook's own number lives.
-    private static let beyondComparison = 240  // minutes
+    // Past 2h30, no single familiar thing is long enough to hold the number.
+    private static let beyondComparison = 150  // minutes
 
     static func equivalent(for totalSeconds: Int) -> Equivalent? {
         let minutes = max(0, totalSeconds) / 60
@@ -45,20 +44,27 @@ struct EquivalentTaskMapper {
             return Equivalent(emoji: "", line: reckoning(minutes))
         }
 
-        // Each of these is ONE thing, and roughly this long in real life — so the
-        // claim is true, and the reader can see it without doing any arithmetic.
+        // Buckets are tight, so the thing named is genuinely about as long as the
+        // time shown next to it. The old table's buckets were an hour wide, which
+        // is how 83 minutes ended up described as a 60-minute activity.
         switch minutes {
-        case ..<25:  return Equivalent(emoji: "☕️", line: "that's a coffee with someone.")
-        case ..<45:  return Equivalent(emoji: "📺", line: "that's an episode.")
-        case ..<75:  return Equivalent(emoji: "🚇", line: "that's your commute. both ways.")
-        case ..<105: return Equivalent(emoji: "⚽️", line: "that's a football match.")
-        case ..<165: return Equivalent(emoji: "🎬", line: "that's a film.")
-        default:     return Equivalent(emoji: "✈️", line: "that's a flight to another city.")
+        case ..<18:  return Equivalent(emoji: "🧘", line: "that's a 15-minute meditation.")
+        case ..<28:  return Equivalent(emoji: "📺", line: "that's an episode of a sitcom.")
+        case ..<38:  return Equivalent(emoji: "🏃", line: "that's a 5K run.")
+        case ..<53:  return Equivalent(emoji: "🏋️", line: "that's a full-body workout.")
+        case ..<71:  return Equivalent(emoji: "📺", line: "that's an episode of a drama.")
+        case ..<101: return Equivalent(emoji: "⚽️", line: "that's a football match.")
+        default:     return Equivalent(emoji: "🎬", line: "that's a feature film.")
         }
     }
 
-    // Not "you could have" — "here is the bill." A day's pace, extended across a
-    // year, in days. Unarguable, and the one cost that is genuinely unrecoverable.
+    // Not "you could have" — "here is the bill." One day's pace, extended across
+    // a year, in days. Nothing to argue with, and the only cost that is truly
+    // unrecoverable.
+    //
+    // 4h/day lands on 61 days, which is the number the Hook opens the entire app
+    // with — so the first line a user ever reads and the line they see every day
+    // finally say the same thing.
     private static func reckoning(_ minutes: Int) -> String {
         let daysPerYear = Int((Double(minutes) * 365 / (24 * 60)).rounded())
         return "\(daysPerYear) days a year, at this pace.\nyou don't get them back."

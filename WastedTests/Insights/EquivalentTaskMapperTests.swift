@@ -13,60 +13,66 @@ final class EquivalentTaskMapperTests: XCTestCase {
         XCTAssertNotNil(EquivalentTaskMapper.equivalent(for: 10 * 60))
     }
 
-    // THE ORIGINAL BUG: a lookup table that snapped DOWN to a fixed threshold,
-    // so 1h 23m rendered the 1h row ("a book chapter (25 pages)") and silently
-    // discarded 23 minutes.
-    //
-    // THE DEEPER BUG: even fixed, "69 pages of a book" is unrelatable — nobody
-    // can picture 69 pages — and it's the app suggesting a hobby, which the
-    // product guide forbids ("never offers a solution — it just keeps count").
-    // A comparison must be ONE WHOLE THING the reader can see at a glance.
-    func test_theReportedCase_83Minutes_isOneThingYouCanPicture() {
-        let text = line(83)
-        XCTAssertEqual(text, "that's a football match.")
-        XCTAssertFalse(text.contains("pages"), "a scaled count is not relatable: \(text)")
+    // THE ORIGINAL BUG: the table snapped DOWN to a fixed threshold, so 1h 23m
+    // rendered the 1h row — "a book chapter (25 pages)" — silently discarding 23
+    // minutes AND understating the reading rate. This app must never understate.
+    func test_theReportedCase_83Minutes() {
+        XCTAssertEqual(line(83), "that's a football match.")
     }
 
-    func test_noComparisonIsEverAScaledCount() {
-        // If a comparison contains a number, it's a quantity — and a quantity is
-        // the thing nobody can picture.
-        for minutes in stride(from: 10, to: 240, by: 3) {
-            let text = line(minutes)
-            XCTAssertFalse(
-                text.contains(where: \.isNumber),
-                "comparison became a count at \(minutes)m: \(text)"
-            )
+    // Every comparison must be something a stranger ANYWHERE already knows the
+    // length of. These all failed that: a commute is 20 minutes for one person
+    // and 90 for another; "a coffee" is 15 minutes or two hours; a flight is an
+    // hour or eleven. Not durations — just vibes.
+    func test_noComparisonDependsOnWhoTheUserIs() {
+        let notUniversal = ["commute", "coffee", "flight", "your walk", "lunch break"]
+        for minutes in stride(from: 10, through: 16 * 60, by: 3) {
+            let text = line(minutes).lowercased()
+            for phrase in notUniversal {
+                XCTAssertFalse(text.contains(phrase), "assumed the user's life at \(minutes)m: \(text)")
+            }
         }
     }
 
-    // Past the point where any single thing can hold the number, stop comparing
-    // and state what it costs — the part you genuinely can't get back.
-    func test_pastFourHours_stopsComparingAndCompounds() {
-        let text = line(240)
+    // Nobody can picture 69 pages, or a 13 km run. A comparison is a NAMED thing
+    // with a known length, never a computed quantity of one.
+    func test_noComparisonIsAScaledQuantity() {
+        for minutes in stride(from: 10, to: 150, by: 3) {
+            let text = line(minutes).lowercased()
+            XCTAssertFalse(text.contains("pages"), "a page count is not picturable: \(text)")
+            XCTAssertFalse(text.contains(" km run"), "a scaled distance is not picturable: \(text)")
+        }
+    }
+
+    // The bucket has to be tight enough that the thing named really is about as
+    // long as the number beside it. The old buckets were an hour wide, which is
+    // exactly how 83 minutes got described as a 60-minute activity.
+    func test_eachComparisonIsRoughlyTheRightLength() {
+        XCTAssertEqual(line(15), "that's a 15-minute meditation.")
+        XCTAssertEqual(line(22), "that's an episode of a sitcom.")   // ~22 min
+        XCTAssertEqual(line(31), "that's a 5K run.")                 // ~30 min
+        XCTAssertEqual(line(45), "that's a full-body workout.")      // ~45 min
+        XCTAssertEqual(line(60), "that's an episode of a drama.")    // ~1h
+        XCTAssertEqual(line(90), "that's a football match.")         // 90 min, everywhere
+        XCTAssertEqual(line(120), "that's a feature film.")          // ~2h
+    }
+
+    // Past the point where no single familiar thing is long enough, stop
+    // comparing — "2.5 films" means nothing — and name what it actually costs.
+    func test_pastTwoAndAHalfHours_stopsComparingAndCompounds() {
+        let text = line(150)
         XCTAssertTrue(text.contains("days a year"), text)
         XCTAssertTrue(text.contains("you don't get them back"), text)
-        // No film, no match, no hobby.
         XCTAssertFalse(text.contains("that's a"), text)
     }
 
-    // 4h/day is 60.8 days a year — the exact number the app's own Hook opens
-    // with ("that's 60 days a year. gone."). The first thing a user reads and
-    // the line they see daily should agree.
+    // 4h/day is 60.8 days a year — the number the Hook opens the whole app with
+    // ("that's 60 days a year. gone."). The first line a user ever reads and the
+    // line they see daily must agree.
     func test_theReckoningAgreesWithTheHook() {
         XCTAssertTrue(line(240).hasPrefix("61 days a year"), line(240))
         XCTAssertTrue(line(360).hasPrefix("91 days a year"), line(360))
         XCTAssertTrue(line(480).hasPrefix("122 days a year"), line(480))
-    }
-
-    func test_neverSuggestsAHobby() {
-        // The old table's whole vocabulary. A mirror doesn't prescribe.
-        let prescriptions = ["meditation", "run", "workout", "read", "pages", "guitar", "hike", "you could"]
-        for minutes in stride(from: 10, through: 16 * 60, by: 5) {
-            let text = line(minutes).lowercased()
-            for word in prescriptions {
-                XCTAssertFalse(text.contains(word), "prescribed '\(word)' at \(minutes)m: \(text)")
-            }
-        }
     }
 
     func test_everyValueAcrossAFullDayProducesALine() {

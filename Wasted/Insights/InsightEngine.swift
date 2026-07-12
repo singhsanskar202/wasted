@@ -91,73 +91,80 @@ enum InsightEngine {
         }
 
         // --- Rule engine (priority order, first match wins) ---
+        //
+        // VOICE: every line here is a fact, lowercase, and offers no advice. The
+        // old copy coached — "Keep going.", "Course-correct now.", "Don't break
+        // it.", "Kill the 9pm zone" — and congratulated ("Actual progress.").
+        // That is a different product. The product guide is explicit: Wasted
+        // "never blocks, never shames, never offers a solution — it just keeps
+        // count." A mirror that cheers you on is no longer a mirror.
 
         // 1. Nothing used yet today
         if totalToday == 0 {
-            return verdict("Clean so far. Come back tonight.", tone: .positive)
+            return verdict("clean so far.", tone: .positive)
         }
 
-        // 2. Positive: huge drop vs yesterday (>30%)
+        // 2. Big drop vs yesterday (>30%)
         if let yTotal = yesterday.map({ $0.hourly.reduce(0, +) }),
            yTotal > 0,
            Double(totalToday) < Double(yTotal) * (1 - trendThreshold * 2) {
             let pct = Int(round((1 - Double(totalToday) / Double(yTotal)) * 100))
-            return verdict("\(pct)% less than yesterday. Actual progress.", tone: .positive)
+            return verdict("\(pct)% less than yesterday.", tone: .positive)
         }
 
-        // 3. Positive: a peak zone from yesterday is now clean
+        // 3. A peak hour from yesterday is untouched today
         let yesterdayPeakHour = yesterday.flatMap { peakHour(in: $0.hourly) }
         if let ph = yesterdayPeakHour, today.hourly[ph] == 0 {
-            return verdict("You skipped the \(hourLabel(ph)) habit today.", tone: .positive)
+            return verdict("you skipped the \(hourLabel(ph)) habit today.", tone: .positive)
         }
 
-        // 4. Positive: under 1 hour total (< 3600s)
+        // 4. Under 1 hour total (< 3600s)
         if totalToday < 3600 {
-            return verdict("Under an hour total. That's rare.", tone: .positive)
+            return verdict("under an hour today.", tone: .positive)
         }
 
-        // 5. Warning: single zone dominates (>50% of total)
+        // 5. A single window dominates (>50% of total)
         let streak = longestCleanStreak(in: today.hourly)
         if let dominantZone = zones.filter({ $0.level == .danger || $0.level == .moderate })
             .max(by: { $0.seconds < $1.seconds }),
            totalToday > 0,
            Double(dominantZone.seconds) / Double(totalToday) > 0.5 {
             let label = timeRangeLabel(start: dominantZone.startHour, end: dominantZone.endHour)
-            return verdict("Kill the \(label) zone and you cut today's waste in half.", tone: .warning)
+            return verdict("\(label) is over half of today.", tone: .warning)
         }
 
-        // 6. Warning: multiple danger zones
+        // 6. Several hours you couldn't put it down
         let dangerCount = zones.filter { $0.level == .danger }.count
         if dangerCount >= 3 {
-            return verdict("\(dangerCount) danger zones. No clean run longer than \(streak)h.", tone: .warning)
+            return verdict("\(dangerCount) hours you couldn't put it down.", tone: .warning)
         }
 
-        // 7. Warning: slightly worse than yesterday (>15%)
+        // 7. Worse than yesterday (>15%)
         if let yTotal = yesterday.map({ $0.hourly.reduce(0, +) }),
            yTotal > 0,
            Double(totalToday) > Double(yTotal) * (1 + trendThreshold) {
             let pct = Int(round((Double(totalToday) / Double(yTotal) - 1) * 100))
-            return verdict("\(pct)% more than yesterday. Trend's going the wrong way.", tone: .warning)
+            return verdict("\(pct)% more than yesterday.", tone: .warning)
         }
 
-        // 8. Positive: longest clean streak ≥ 4 hours (only if no warnings fired)
+        // 8. Longest untouched run ≥ 4 hours (only if no warnings fired)
         if streak >= 4 {
-            return verdict("\(streak)h clean streak so far. Don't break it.", tone: .neutral)
+            return verdict("\(streak)h untouched so far.", tone: .neutral)
         }
 
-        // 9. Neutral: scattered usage, no single actionable zone
+        // 9. Scattered usage, no single hour to blame
         if zones.filter({ $0.level != .clean }).count > 4 {
-            return verdict("Usage is scattered. No single zone to cut — reduce across the board.", tone: .neutral)
+            return verdict("usage is scattered. no single hour to blame.", tone: .neutral)
         }
 
-        // 10. Default: show the biggest zone
+        // 10. Default: the biggest window
         if let top = zones.filter({ $0.level != .clean }).max(by: { $0.seconds < $1.seconds }) {
             let label = timeRangeLabel(start: top.startHour, end: top.endHour)
             return verdict("\(label) is your biggest cost today.", tone: .neutral)
         }
 
         // 11. Fallback
-        return verdict("Looking fine today.", tone: .positive)
+        return verdict("nothing to report yet.", tone: .positive)
     }
 
     // MARK: - Historical peak
@@ -222,16 +229,17 @@ enum InsightEngine {
             else                                  { trend = .flat }
         }
 
+        // Same rule as the daily verdicts: state it, don't coach it.
         let verdict: String
         switch trend {
         case .improving:
             let pct = Int(round((1 - Double(secondHalf) / Double(firstHalf)) * 100))
-            verdict = "Down \(pct)% vs. earlier this week. Keep going."
+            verdict = "down \(pct)% since the start of the week."
         case .worsening:
             let pct = Int(round((Double(secondHalf) / Double(firstHalf) - 1) * 100))
-            verdict = "Up \(pct)% vs. earlier this week. Course-correct now."
+            verdict = "up \(pct)% since the start of the week."
         case .flat:
-            verdict = "Flat week. Pick one zone to cut next week."
+            verdict = "flat week."
         }
 
         return WeeklyInsight(totalSeconds: totals, dateLabels: labels, trend: trend, verdictLine: verdict)

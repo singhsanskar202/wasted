@@ -13,21 +13,15 @@ final class ActivityScheduler: ObservableObject {
 
     @Published var isAuthorized = false
 
-    // Fidelity tapers as the day goes on: 1-min steps for the first 5 minutes
-    // (the Island should react fast — that's the whole product), 5-min steps
-    // through 2h, widening to 15-min steps past 4h, since a diminishing-fidelity
-    // tail keeps the per-app event count off DeviceActivity's undocumented cap.
-    static let thresholdMinutes: [Int] =
-        Array(stride(from: 1, through: 5, by: 1)) +
-        Array(stride(from: 10, through: 120, by: 5)) +
-        Array(stride(from: 130, through: 240, by: 10)) +
-        Array(stride(from: 255, through: 480, by: 15))
-
     // Bump whenever the shape of the event registration changes (threshold
     // series, event flags…). Installed devices keep running the OLD schedule
     // until startMonitoring re-runs — this re-registers on next foreground so
     // an update takes effect without the user re-picking their apps.
-    static let registrationSchemaVersion = 2
+    static let registrationSchemaVersion = 3
+
+    // Which plan actually registered, for diagnostics — the cap is undocumented,
+    // so the only way to know where it bites is to look at what survived.
+    static let activePlanKey = "monitoring_active_plan"
     private static let registrationVersionKey = "monitoring_schema_version"
 
     func refreshRegistrationIfNeeded() {
@@ -45,8 +39,11 @@ final class ActivityScheduler: ObservableObject {
         do {
             try await AuthorizationCenter.shared.requestAuthorization(for: .individual)
             isAuthorized = true
+            EventLog.log(.onboarding, "FamilyControls authorization GRANTED (.individual)")
         } catch {
             isAuthorized = false
+            // Without this the app records nothing, ever. It deserves a loud line.
+            EventLog.error(.onboarding, "FamilyControls authorization DENIED: \(error)")
         }
     }
 
@@ -78,17 +75,50 @@ final class ActivityScheduler: ObservableObject {
         storeDisplayNames(displayNames)
         storeTokens(tokensByIndex)
 
+        let schedule = DeviceActivitySchedule(
+            intervalStart: DateComponents(hour: 0, minute: 0),
+            intervalEnd: DateComponents(hour: 23, minute: 59),
+            repeats: true
+        )
+
+        // Finest grid first, stepping down until one registers. startMonitoring
+        // throws as a WHOLE if the event set exceeds DeviceActivity's
+        // undocumented cap, and a throw means the day records nothing — so the
+        // fallback isn't defensive padding, it's the difference between a
+        // slightly coarser number and no number at all.
+        for plan in ThresholdPlan.ladder {
+            let events = Self.events(for: plan, tokens: tokens)
+            do {
+                try center.startMonitoring(.wastedDaily, during: schedule, events: events)
+                EventLog.log(.monitor, "monitoring STARTED plan=\(plan.name) events=\(events.count) apps=\(tokens.count)")
+                // Only a successful registration is current — on failure the
+                // version stays stale so the next foreground retries.
+                let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID)
+                defaults?.set(Self.registrationSchemaVersion, forKey: Self.registrationVersionKey)
+                defaults?.set(plan.name, forKey: Self.activePlanKey)
+                return
+            } catch {
+                EventLog.error(.monitor, "plan=\(plan.name) REJECTED at \(events.count) events — DeviceActivity cap: \(error)")
+                center.stopMonitoring()
+            }
+        }
+        EventLog.error(.monitor, "startMonitoring FAILED — every plan rejected, THE DAY WILL RECORD NOTHING")
+    }
+
+    // includesPastActivity everywhere: startMonitoring can re-run mid-day
+    // (selection edit, schema refresh) and thresholds must keep counting the
+    // whole day's usage, not restart from zero. Replayed events are deduped
+    // downstream (delta / high-water-mark checks in the extension).
+    private static func events(
+        for plan: ThresholdPlan,
+        tokens: [Application]
+    ) -> [DeviceActivityEvent.Name: DeviceActivityEvent] {
         var events: [DeviceActivityEvent.Name: DeviceActivityEvent] = [:]
 
-        // includesPastActivity everywhere: startMonitoring can re-run mid-day
-        // (selection edit, schema refresh) and thresholds must keep counting
-        // the whole day's usage, not restart from zero. Replayed events are
-        // deduped downstream (delta/high-water-mark checks in the extension).
         for (index, app) in tokens.enumerated() {
             guard let appToken = app.token else { continue }
-            for minutes in Self.thresholdMinutes {
-                let name = DeviceActivityEvent.Name("\(index):\(minutes)")
-                events[name] = DeviceActivityEvent(
+            for minutes in plan.perApp {
+                events[DeviceActivityEvent.Name("\(index):\(minutes)")] = DeviceActivityEvent(
                     applications: [appToken],
                     threshold: DateComponents(minute: minutes),
                     includesPastActivity: true
@@ -96,37 +126,18 @@ final class ActivityScheduler: ObservableObject {
             }
         }
 
-        // Combined series over ALL tracked apps — the island's minute-level
-        // heartbeat (see AppGroupKeys.totalThresholdMinutes).
+        // Combined series over ALL tracked apps — the heartbeat behind the
+        // widget, the island, and the home number.
         let allTokens = Set(tokens.compactMap(\.token))
-        for minutes in AppGroupKeys.totalThresholdMinutes {
-            let name = DeviceActivityEvent.Name("\(AppGroupKeys.totalEventPrefix):\(minutes)")
-            events[name] = DeviceActivityEvent(
+        for minutes in plan.combined {
+            events[DeviceActivityEvent.Name("\(AppGroupKeys.totalEventPrefix):\(minutes)")] = DeviceActivityEvent(
                 applications: allTokens,
                 threshold: DateComponents(minute: minutes),
                 includesPastActivity: true
             )
         }
 
-        let schedule = DeviceActivitySchedule(
-            intervalStart: DateComponents(hour: 0, minute: 0),
-            intervalEnd: DateComponents(hour: 23, minute: 59),
-            repeats: true
-        )
-
-        // DeviceActivity has an undocumented cap on registered events and
-        // startMonitoring fails as a whole — never swallow that silently or
-        // the app records nothing all day.
-        do {
-            try center.startMonitoring(.wastedDaily, during: schedule, events: events)
-            LiveActivityManager.log("monitoring started, \(events.count) events")
-            // Only a successful registration is current — on failure the
-            // version stays stale so the next foreground retries.
-            UserDefaults(suiteName: AppGroupKeys.appGroupID)?
-                .set(Self.registrationSchemaVersion, forKey: Self.registrationVersionKey)
-        } catch {
-            LiveActivityManager.log("startMonitoring FAILED (\(events.count) events): \(error)")
-        }
+        return events
     }
 
     func stopMonitoring() {

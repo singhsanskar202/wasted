@@ -3,10 +3,17 @@ import UserNotifications
 
 final class NotificationScheduler {
 
-    func scheduleNudge(appName: String, minutes: Int) {
+    // The body is chosen by the caller (which owns the store, and so knows
+    // which lines today has already spent) — this just delivers it.
+    //
+    // The identifier is deterministic on app + threshold rather than random:
+    // DeviceActivity replays passed thresholds in bursts after a re-registration,
+    // and a random id would turn each replay into a fresh buzz. Same threshold,
+    // same id, so iOS collapses the duplicate instead of firing it twice.
+    func scheduleNudge(appName: String, minutes: Int, body: String) {
         let content = UNMutableNotificationContent()
         content.title = NudgeCopy.title(minutes: minutes)
-        content.body = NudgeCopy.body(at: Int.random(in: 0..<NudgeCopy.bodies.count))
+        content.body = body
         content.sound = .default
 
         let request = UNNotificationRequest(

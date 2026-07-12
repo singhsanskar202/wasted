@@ -1,0 +1,21 @@
+type,tier,tier_range,line_id,title,body,trigger,source
+nudge,opening,under 1h,0,"{minutes} e.g. ""15m""","that's enough for now — back to it?",every 15 min of usage in one app,Wasted/Shared/Nudges.swift
+nudge,opening,under 1h,1,"{minutes} e.g. ""30m""","you opened it for a reason. was this it?",every 15 min of usage in one app,Wasted/Shared/Nudges.swift
+nudge,opening,under 1h,2,"{minutes} e.g. ""45m""","still worth it?",every 15 min of usage in one app,Wasted/Shared/Nudges.swift
+nudge,opening,under 1h,3,"{minutes}","the count doesn't pause. you can.",every 15 min of usage in one app,Wasted/Shared/Nudges.swift
+nudge,opening,under 1h,4,"{minutes}","nothing new since you last checked.",every 15 min of usage in one app,Wasted/Shared/Nudges.swift
+nudge,opening,under 1h,5,"{minutes}","this is the part you won't remember tomorrow.",every 15 min of usage in one app,Wasted/Shared/Nudges.swift
+nudge,opening,under 1h,6,"{minutes}","just so you know.",every 15 min of usage in one app,Wasted/Shared/Nudges.swift
+nudge,settling,1h–2h,10,"{minutes} e.g. ""1h 15m""","the number only goes up from here.",every 15 min of usage in one app,Wasted/Shared/Nudges.swift
+nudge,settling,1h–2h,11,"{minutes}","this stopped being a break.",every 15 min of usage in one app,Wasted/Shared/Nudges.swift
+nudge,settling,1h–2h,12,"{minutes}","you said one more minute a while ago.",every 15 min of usage in one app,Wasted/Shared/Nudges.swift
+nudge,settling,1h–2h,13,"{minutes}","you could have finished something by now.",every 15 min of usage in one app,Wasted/Shared/Nudges.swift
+nudge,settling,1h–2h,14,"{minutes}","you've already seen this feed.",every 15 min of usage in one app,Wasted/Shared/Nudges.swift
+nudge,settling,1h–2h,15,"{minutes}","nobody is making you stay.",every 15 min of usage in one app,Wasted/Shared/Nudges.swift
+nudge,deep,2h+,20,"{minutes} e.g. ""3h 0m""","this is what the day went to.",every 15 min of usage in one app,Wasted/Shared/Nudges.swift
+nudge,deep,2h+,21,"{minutes}","you're not choosing this anymore. you're just not leaving.",every 15 min of usage in one app,Wasted/Shared/Nudges.swift
+nudge,deep,2h+,22,"{minutes}","you don't get this back.",every 15 min of usage in one app,Wasted/Shared/Nudges.swift
+nudge,deep,2h+,23,"{minutes}","put it down. the number stays either way.",every 15 min of usage in one app,Wasted/Shared/Nudges.swift
+nudge,deep,2h+,24,"{minutes}","you'd be furious if someone took this much from you.",every 15 min of usage in one app,Wasted/Shared/Nudges.swift
+nudge,deep,2h+,25,"{minutes}","this is your evening now.",every 15 min of usage in one app,Wasted/Shared/Nudges.swift
+receipt,n/a,any,n/a,"today's receipt","{total} today — {percent}% of your waking hours.",9:00 pm daily (only if usage > 0),Wasted/Shared/ReceiptScheduler.swift

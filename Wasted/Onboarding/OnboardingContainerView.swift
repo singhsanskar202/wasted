@@ -1,8 +1,31 @@
 import FamilyControls
 import SwiftUI
 
-// Screen Time permission sits before the app picker by necessity:
-// familyActivityPicker can't list apps until FamilyControls auth is granted.
+// Four screens. It was seven.
+//
+// Three of the seven produced no state at all — they existed only to persuade:
+//   · DifferentiationView ("this won't block anything") — a full screen, placed
+//     TWO screens before the fear it answers. Folded into AppPickerView's
+//     subhead, where someone is actually being asked to hand over Screen Time
+//     access and is wondering whether their phone is about to be locked.
+//   · DoneView ("no hiding now") — confirmed what the user had just done, then
+//     charged a tap for the privilege. The home screen at 0m, and the island
+//     lighting up on the first scroll, are the real confirmation.
+//   · PermissionView — split from the picker only because familyActivityPicker
+//     can't list apps before auth. That's a technical dependency, not a reason
+//     to spend a screen. AppPickerView now does auth and picking in one tap.
+//
+// The four that remain each earn their place:
+//   0. Hook   — the argument. Nobody grants Screen Time access to an app they
+//               don't yet care about; this is what makes the next tap possible.
+//   1. Guess  — the ONLY input to the Reality Check, which the product guide
+//               calls the conversion engine. Asked before any data is shown, so
+//               the guess stays uncontaminated.
+//   2. Picker — FamilyControls auth + the tracked selection. Without these the
+//               app cannot function at all.
+//   3. Nudges — notification auth. One-shot on iOS (deny once and the app can
+//               never ask again), so the priming copy before the system dialog
+//               is what protects the grant rate. Closes onboarding itself.
 struct OnboardingContainerView: View {
     @State private var step = 0
     let onComplete: () -> Void
@@ -19,29 +42,26 @@ struct OnboardingContainerView: View {
                 GuessView { advance() }
                     .transition(.opacity)
             case 2:
-                DifferentiationView { advance() }
-                    .transition(.opacity)
-            case 3:
-                PermissionView { advance() }
-                    .transition(.opacity)
-            case 4:
                 AppPickerView { selection in
+                    EventLog.log(.onboarding, "apps selected: \(selection.applications.count)")
                     ActivityScheduler.shared.startMonitoring(selection: selection)
                     advance()
                 }
                 .transition(.opacity)
-            case 5:
-                NotificationPermissionView { advance() }
-                    .transition(.opacity)
             default:
-                DoneView { onComplete() }
-                    .transition(.opacity)
+                NotificationPermissionView {
+                    EventLog.log(.onboarding, "onboarding COMPLETE")
+                    onComplete()
+                }
+                .transition(.opacity)
             }
         }
         .animation(.easeInOut(duration: 0.4), value: step)
+        .onAppear { EventLog.log(.onboarding, "onboarding started") }
     }
 
     private func advance() {
         step += 1
+        EventLog.log(.onboarding, "step \(step)")
     }
 }

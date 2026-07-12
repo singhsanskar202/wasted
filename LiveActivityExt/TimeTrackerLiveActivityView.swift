@@ -7,9 +7,10 @@ import WidgetKit
 // equivalent line → grounding bar) so every surface speaks the same
 // language: single centered axis, quiet captions, one red accent.
 //
-// The time steps once per minute: "47m" under an hour, "1:58" (h:mm) past
-// it — never raw minutes, never visible seconds. No app names — Screen Time
-// never exposes them outside the app's own authorized UI.
+// The time is the last CONFIRMED total: "47m" under an hour, "2:50" (h:mm)
+// past it — never raw minutes, never seconds, and never a guess. It refreshes
+// when the main app runs and dims when it knows it's behind. No app names —
+// Screen Time never exposes them outside the app's own authorized UI.
 struct TimeTrackerWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: TimeTrackerAttributes.self) { context in
@@ -42,7 +43,7 @@ struct TimeTrackerWidget: Widget {
                     .italic()
                     .foregroundStyle(.white)
             } compactTrailing: {
-                MinuteTimeText(context: context, fontSize: 15)
+                ConfirmedTimeText(context: context, fontSize: 15)
                     .foregroundStyle(.white)
             } minimal: {
                 Text("W")
@@ -56,6 +57,18 @@ struct TimeTrackerWidget: Widget {
 
 private let alarmRed = Color(red: 1.0, green: 0.36, blue: 0.36)
 
+// The activity's day is baked into its attributes at creation. If the calendar
+// has moved past it, every number in the state belongs to a day that is over —
+// so the card reads 0m, not yesterday's total.
+//
+// This is the entire midnight reset, and it needs no process to be running. The
+// monitor extension can't end the activity, and the app may not launch until
+// morning; but the system re-renders this view when staleDate passes, and
+// staleDate is pinned to midnight. That render is where the day flips.
+private func confirmedSeconds(_ context: ActivityViewContext<TimeTrackerAttributes>) -> Int {
+    context.attributes.day == AppGroupKeys.dayString() ? context.state.totalSeconds : 0
+}
+
 // MARK: - Shared card
 
 private struct WastedCard: View {
@@ -63,7 +76,7 @@ private struct WastedCard: View {
     let heroSize: CGFloat
 
     var body: some View {
-        let total = context.state.totalSeconds
+        let total = confirmedSeconds(context)
         let fraction = min(1.0, Double(total) / Double(AppGroupKeys.awakeDayHours * 3600))
         let percent = Int((fraction * 100).rounded())
 
@@ -83,14 +96,14 @@ private struct WastedCard: View {
 
             // Hero — the one thing this surface exists to show. Scaled to
             // own the canvas: the number is the product.
-            MinuteTimeText(context: context, fontSize: heroSize, balanced: true)
+            ConfirmedTimeText(context: context, fontSize: heroSize)
                 .foregroundStyle(total >= 3600 ? alarmRed : .white)
                 .padding(.top, 12)
 
             // The confrontation line, centered under the hero like HomeView.
             Group {
-                if let eq = EquivalentTaskMapper.equivalent(for: total) {
-                    Text("that's \(eq.emoji) \(eq.description).")
+                if let equivalent = EquivalentTaskMapper.equivalent(for: total) {
+                    Text(equivalent.fullText)
                 } else {
                     Text("the number only goes up from here.")
                 }
@@ -98,8 +111,11 @@ private struct WastedCard: View {
             .font(.system(size: 14, weight: .regular, design: .serif))
             .italic()
             .foregroundStyle(.white.opacity(0.75))
-            .lineLimit(1)
-            .minimumScaleFactor(0.85)
+            .multilineTextAlignment(.center)
+            // Two lines: past 4h the line becomes "N days a year, at this pace. /
+            // you don't get them back."
+            .lineLimit(2)
+            .minimumScaleFactor(0.8)
             .padding(.top, 8)
 
             // Grounding line — how much of the waking day is gone.
@@ -126,87 +142,39 @@ private struct WastedCard: View {
 
 // MARK: - Time text
 
-// Self-advancing time, minutes granularity, "47m" → "1:58" formats.
+// The confirmed total: "47m" under an hour, "2:50" past it.
 //
-// No process can redraw the island each minute (the usage extension can't
-// reach the activity, and the app is suspended), so the only self-advancing
-// primitive is the system timer text — which always includes seconds, and
-// which the island renderer refuses to clip/offset (digits vanish). So:
-// render the full timer and COVER the ":SS" tail with an opaque black plate.
-// Every surface this view appears on is pure black — the card paints its own
-// opaque background for exactly this reason.
+// This used to be a system timer text that self-advanced between anchors. That
+// is gone. The timer advanced with the WALL CLOCK, which silently assumed the
+// user was inside a tracked app the entire time — and device logs disproved
+// that outright (a 27-minute wall-clock gap carried 2 minutes of real usage).
+// It inflated the number while the phone sat face-down and still froze during
+// long sessions, because only the main app can re-anchor the island. Wrong in
+// both directions, and it dragged in a whole apparatus: an always-on seconds
+// component the island renderer refused to clip, hidden behind a hand-measured
+// opaque "plate", with per-optical-size font advance tables to place it.
 //
-// Typography: SF Pro BOLD with monospaced digits (not full monospace — its
-// full-width colon made "2 : 22" look gappy). Advances are optical-size
-// dependent, measured per size via NSFont. Weight is fixed bold because the
-// metrics are weight-specific.
-//
-// Once stale (anchor window ran out — the user left tracked apps or hasn't
-// opened Wasted in a while), swaps to the exact confirmed total, dimmed.
-private struct MinuteTimeText: View {
+// A confirmed total needs none of that. It can be behind, but every digit of it
+// is true — and the number only ever goes up, so it reads as a floor, which is
+// exactly the promise the product makes. Dimmed once stale: "real, and old".
+private struct ConfirmedTimeText: View {
     let context: ActivityViewContext<TimeTrackerAttributes>
     let fontSize: CGFloat
-    // The hidden ":SS" tail is dead width on the trailing side; in centered
-    // layouts that drags the visible digits off-axis. balanced adds matching
-    // leading padding so the VISIBLE digits sit on the true center line.
-    var balanced = false
-
-    private static func advances(for size: CGFloat) -> (digit: CGFloat, colon: CGFloat) {
-        switch size {
-        case ..<14: return (size * 0.6655, size * 0.3418)
-        case ..<20: return (size * 0.6558, size * 0.3320)
-        case ..<30: return (size * 0.6588, size * 0.2563)
-        default:    return (size * 0.6572, size * 0.2510)
-        }
-    }
 
     var body: some View {
-        if context.isStale || context.state.capSeconds <= 0 {
-            Text(AppGroupKeys.formattedDuration(context.state.totalSeconds))
-                .font(.system(size: fontSize, weight: .bold))
-                .monospacedDigit()
-                .opacity(context.isStale ? 0.55 : 1.0)
-        } else {
-            let total = context.state.totalSeconds
-            let start = context.state.accumulatedStart
-            let end = start.addingTimeInterval(Double(total + context.state.capSeconds))
-            let (digitW, colonW) = Self.advances(for: fontSize)
-            // Format follows the ANCHORED total (not the window max): an
-            // anchor at 47m must read "47m" even though the window could
-            // reach past the hour — if it does, it briefly shows "62m"
-            // until the next anchor, which is honest and still legible.
-            let showsHours = total >= 3600
-            // Highest value this window can reach — both bounds are fixed at
-            // update time, so the layout never changes size mid-window.
-            let maxMinutes = max(1, (total + context.state.capSeconds) / 60)
-            // Visible part: "H:MM" past an hour, bare minutes under it.
-            let visibleWidth = showsHours
-                ? CGFloat(String(maxMinutes / 60).count + 2) * digitW + colonW
-                : CGFloat(String(maxMinutes).count) * digitW
-            // Hidden ":SS" tail — what the plate must cover.
-            let plateWidth = 2 * digitW + colonW + 1
+        // A rolled-over day renders 0m at FULL opacity: that zero is a fresh,
+        // true number, not a stale one. Only a same-day total that has gone
+        // stale gets dimmed.
+        let isNewDay = context.attributes.day != AppGroupKeys.dayString()
 
-            ZStack(alignment: Alignment(horizontal: .trailing, vertical: .firstTextBaseline)) {
-                Text(timerInterval: start...end, countsDown: false, showsHours: showsHours)
-                    .font(.system(size: fontSize, weight: .bold))
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .multilineTextAlignment(.trailing)
-                    // +4 slack: a frame slightly too WIDE just leaves dead
-                    // space on the left (trailing-aligned); too narrow makes
-                    // the Text wrap or truncate — the failure mode to avoid.
-                    .frame(width: visibleWidth + plateWidth + 4, alignment: .trailing)
-                // The plate. A space (not empty text) when no unit is shown,
-                // so the line height still sizes the black cover. Full font
-                // size is load-bearing: a smaller unit glyph shrinks the
-                // plate's line box and the tops of the hidden seconds peek
-                // out above it.
-                Text(showsHours ? " " : "m")
-                    .font(.system(size: fontSize, weight: .semibold))
-                    .frame(width: plateWidth, alignment: .leading)
-                    .background(Color.black)
-            }
-            .padding(.leading, balanced ? plateWidth + 4 : 0)
-        }
+        // "1h 23m", never "1:23". This card sits inches under the Lock Screen's
+        // own clock — a colon between two numbers reads as a time of day there,
+        // no matter what the label above it says.
+        Text(AppGroupKeys.formattedDuration(confirmedSeconds(context)))
+            .font(.system(size: fontSize, weight: .bold))
+            .monospacedDigit()
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)   // the compact island slot is narrow
+            .opacity(context.isStale && !isNewDay ? 0.55 : 1.0)
     }
 }

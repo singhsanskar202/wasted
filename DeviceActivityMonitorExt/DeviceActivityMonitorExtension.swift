@@ -11,20 +11,29 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     let notificationScheduler = NotificationScheduler()
     let receiptScheduler = ReceiptScheduler()
 
+    // The day boundary. If these two stop firing, EVERY downstream surface
+    // silently keeps yesterday's numbers — and until now nothing recorded
+    // whether they fired at all.
     override func intervalDidStart(for activity: DeviceActivityName) {
-        // New day — reset badge and increment days-tracked counter
+        EventLog.log(.monitor, "intervalDidStart — new day begins")
         Task {
             try? await UNUserNotificationCenter.current().setBadgeCount(0)
         }
-        guard let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID) else { return }
+        guard let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID) else {
+            EventLog.error(.monitor, "intervalDidStart: App Group UNREACHABLE")
+            return
+        }
         let count = defaults.integer(forKey: AppGroupKeys.daysTrackedKey)
         defaults.set(count + 1, forKey: AppGroupKeys.daysTrackedKey)
     }
 
     override func intervalDidEnd(for activity: DeviceActivityName) {
-        // Archive completed day into history before clearing
         let today = store.loadTodayUsage()
+        EventLog.log(.monitor, "intervalDidEnd — archiving \(today.date) total=\(today.seconds.values.reduce(0, +))s")
         store.archiveToHistory(today)
+        // Known no-op: ActivityKit is unreachable from this process, so the
+        // island survives midnight regardless. The view resets itself instead
+        // (staleDate pinned to midnight + a day check).
         liveActivityManager.endAllActivitiesAndWait()
         store.clearActiveApp()
     }
@@ -37,7 +46,12 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         guard parts.count == 2,
               let minutes = Int(parts[1]),
               minutes > 0
-        else { return }
+        else {
+            // An unparseable event name means the registration and this parser
+            // disagree — usage would silently stop being recorded.
+            EventLog.error(.monitor, "UNPARSEABLE event name '\(event.rawValue)' — usage not recorded")
+            return
+        }
 
         if parts[0] == AppGroupKeys.totalEventPrefix {
             handleTotalThreshold(minutes: minutes)
@@ -47,7 +61,7 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         let appIndex = parts[0]
         let totalSeconds = minutes * 60
         let appName = resolveDisplayName(for: appIndex)
-        LiveActivityManager.log("threshold fired \(event.rawValue) app=\(appIndex) min=\(minutes)")
+        EventLog.log(.monitor, "per-app threshold \(event.rawValue) app=\(appIndex) min=\(minutes)")
 
         // Recording never stops — trial gating only affects what's surfaced.
         // Hourly heatmap attribution deliberately NOT here: the combined
@@ -62,11 +76,23 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         let trialState = TrialClock.state(firstLaunch: store.firstLaunchDate(), unlocked: store.isUnlocked())
         if trialState != .expired {
             if NudgeGate.shouldNudge(minutes: minutes, last: store.lastNudge(for: appIndex)) {
-                notificationScheduler.scheduleNudge(appName: appName, minutes: minutes)
+                // Pick a line today hasn't spent yet, then burn it — a nudge the
+                // user has already read is a nudge they scroll past.
+                let line = NudgeCopy.next(minutes: minutes, used: store.usedNudgeLines())
+                notificationScheduler.scheduleNudge(appName: appName, minutes: minutes, body: line.text)
+                store.markNudgeLine(line.id)
                 store.recordNudge(minutes: minutes, for: appIndex)
+                EventLog.log(.nudge, "SENT at \(minutes)m app=\(appIndex) line=\(line.id) \"\(line.text)\"")
+            } else {
+                // Logging the SUPPRESSED case matters as much as the sent one:
+                // "why did I not get a nudge?" is unanswerable without it, and
+                // the gate has three separate reasons to stay quiet.
+                EventLog.log(.nudge, "suppressed at \(minutes)m app=\(appIndex) (last=\(store.lastNudge(for: appIndex)?.minutes.description ?? "none"))")
             }
 
             receiptScheduler.refresh(usage: store.loadTodayUsage(), displayNames: allDisplayNames())
+        } else {
+            EventLog.log(.trial, "EXPIRED — recording continues, nudges/island suppressed")
         }
 
         let total = store.totalSecondsAllApps()
@@ -75,19 +101,14 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         }
 
         WidgetCenter.shared.reloadAllTimelines()
+        EventLog.log(.widget, "reload requested from extension total=\(total)s")
 
         if trialState != .expired {
             // The island shows the grand total across all tracked apps, not
-            // this one app's slice. Blocking: the extension is suspended the
-            // instant this callback returns, so a fire-and-forget async update
-            // would be dropped. Deliberately LAST — it may poll several seconds
-            // for .activities to sync into this fresh process, and if the
-            // system kills the callback mid-wait, only this (already-failing)
-            // update is lost, never the nudge/receipt/badge work above.
-            liveActivityManager.updateExistingAndWait(
-                totalSeconds: total,
-                capSeconds: AppGroupKeys.staleSeconds(afterTotalSeconds: total)
-            )
+            // this one app's slice. A no-op in practice — ActivityKit is
+            // unreachable from this process — so it stays LAST, after the work
+            // that does land (nudge, receipt, badge, widget).
+            liveActivityManager.updateExistingAndWait(totalSeconds: total)
         }
     }
 
@@ -99,10 +120,17 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         // includesPastActivity can replay every already-passed threshold in a
         // burst after a mid-day selection change — only the high-water mark
         // does real work, so the burst costs almost nothing.
-        guard newTotal > stored else { return }
+        guard newTotal > stored else {
+            // A replayed threshold (includesPastActivity re-fires everything
+            // already passed after a re-registration). Logged because a FLOOD of
+            // these is the signature of the schedule being re-registered in a
+            // loop — which would be a real bug and is otherwise invisible.
+            EventLog.log(.monitor, "combined threshold \(minutes)m REPLAYED (stored=\(stored / 60)m)")
+            return
+        }
         store.setCombinedSecondsToday(newTotal)
         store.addHourlySeconds(newTotal - stored)
-        LiveActivityManager.log("total threshold \(minutes)m")
+        EventLog.log(.monitor, "combined threshold \(minutes)m (+\((newTotal - stored) / 60)m)")
 
         let total = store.totalSecondsAllApps()
         Task {
@@ -113,10 +141,7 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         let trialState = TrialClock.state(firstLaunch: store.firstLaunchDate(), unlocked: store.isUnlocked())
         if trialState != .expired {
             // Blocking and last, same as the per-app path.
-            liveActivityManager.updateExistingAndWait(
-                totalSeconds: total,
-                capSeconds: AppGroupKeys.staleSeconds(afterTotalSeconds: total)
-            )
+            liveActivityManager.updateExistingAndWait(totalSeconds: total)
         }
     }
 

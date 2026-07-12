@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		6900EED13002936D0005A39E /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6953D9AC2FC5D36A00D38AF0 /* WidgetKit.framework */; };
+		6900EED23002936D0005A39E /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6953D9AE2FC5D36A00D38AF0 /* SwiftUI.framework */; };
+		6900EEDF3002936F0005A39E /* WastedWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 6900EED03002936C0005A39E /* WastedWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		6953D9992FC5D31200D38AF0 /* DeviceActivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6953D9982FC5D31200D38AF0 /* DeviceActivity.framework */; };
 		6953D9A12FC5D31200D38AF0 /* DeviceActivityMonitorExt.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 6953D9962FC5D31200D38AF0 /* DeviceActivityMonitorExt.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		6953D9AD2FC5D36A00D38AF0 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6953D9AC2FC5D36A00D38AF0 /* WidgetKit.framework */; };
@@ -15,6 +18,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		6900EEDD3002936F0005A39E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6953D97C2FC5D22B00D38AF0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6900EECF3002936C0005A39E;
+			remoteInfo = WastedWidgetsExtension;
+		};
 		6953D99F2FC5D31200D38AF0 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 6953D97C2FC5D22B00D38AF0 /* Project object */;
@@ -45,6 +55,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
+				6900EEDF3002936F0005A39E /* WastedWidgetsExtension.appex in Embed Foundation Extensions */,
 				6953D9A12FC5D31200D38AF0 /* DeviceActivityMonitorExt.appex in Embed Foundation Extensions */,
 				6953D9C02FC5D36B00D38AF0 /* LiveActivityExtExtension.appex in Embed Foundation Extensions */,
 			);
@@ -54,6 +65,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		6900EED03002936C0005A39E /* WastedWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WastedWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		6953D9842FC5D22C00D38AF0 /* Wasted.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Wasted.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6953D9962FC5D31200D38AF0 /* DeviceActivityMonitorExt.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = DeviceActivityMonitorExt.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		6953D9982FC5D31200D38AF0 /* DeviceActivity.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = DeviceActivity.framework; path = System/Library/Frameworks/DeviceActivity.framework; sourceTree = SDKROOT; };
@@ -64,6 +76,27 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		6900EEE23002936F0005A39E /* Exceptions for "WastedWidgets" folder in "WastedWidgetsExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 6900EECF3002936C0005A39E /* WastedWidgetsExtension */;
+		};
+		6900EEE43002936F0005A39E /* Exceptions for "Wasted" folder in "WastedWidgetsExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Shared/Diagnostics/EventLog.swift,
+				Shared/Models/AppGroupKeys.swift,
+				Shared/Models/DailyUsage.swift,
+				Shared/Models/HourlyUsage.swift,
+				Shared/Nudges.swift,
+				Shared/Storage/UsageStore.swift,
+				Shared/TrialClock.swift,
+				Theme.swift,
+			);
+			target = 6900EECF3002936C0005A39E /* WastedWidgetsExtension */;
+		};
 		6953D9A22FC5D31200D38AF0 /* Exceptions for "DeviceActivityMonitorExt" folder in "DeviceActivityMonitorExt" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -82,6 +115,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Shared/DailyReceipt.swift,
+				Shared/Diagnostics/EventLog.swift,
 				Shared/LiveActivity/TimeTrackerAttributes.swift,
 				Shared/LiveActivityManager.swift,
 				Shared/Models/AppGroupKeys.swift,
@@ -106,11 +140,20 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		6900EED33002936D0005A39E /* WastedWidgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				6900EEE23002936F0005A39E /* Exceptions for "WastedWidgets" folder in "WastedWidgetsExtension" target */,
+			);
+			path = WastedWidgets;
+			sourceTree = "<group>";
+		};
 		6953D9862FC5D22C00D38AF0 /* Wasted */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				6953DA132FC5E09800D38AF0 /* Exceptions for "Wasted" folder in "DeviceActivityMonitorExt" target */,
 				6953DA162FC5E0B500D38AF0 /* Exceptions for "Wasted" folder in "LiveActivityExtExtension" target */,
+				6900EEE43002936F0005A39E /* Exceptions for "Wasted" folder in "WastedWidgetsExtension" target */,
 			);
 			path = Wasted;
 			sourceTree = "<group>";
@@ -139,6 +182,15 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		6900EECD3002936C0005A39E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6900EED23002936D0005A39E /* SwiftUI.framework in Frameworks */,
+				6900EED13002936D0005A39E /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		6953D9812FC5D22C00D38AF0 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -180,6 +232,7 @@
 				6953D99A2FC5D31200D38AF0 /* DeviceActivityMonitorExt */,
 				6953D9B02FC5D36A00D38AF0 /* LiveActivityExt */,
 				6953D9CA2FC5D3C200D38AF0 /* WastedTests */,
+				6900EED33002936D0005A39E /* WastedWidgets */,
 				6953D9972FC5D31200D38AF0 /* Frameworks */,
 				6953D9852FC5D22C00D38AF0 /* Products */,
 			);
@@ -192,6 +245,7 @@
 				6953D9962FC5D31200D38AF0 /* DeviceActivityMonitorExt.appex */,
 				6953D9AB2FC5D36A00D38AF0 /* LiveActivityExtExtension.appex */,
 				6953D9C92FC5D3C200D38AF0 /* WastedTests.xctest */,
+				6900EED03002936C0005A39E /* WastedWidgetsExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -209,6 +263,28 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		6900EECF3002936C0005A39E /* WastedWidgetsExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6900EEE33002936F0005A39E /* Build configuration list for PBXNativeTarget "WastedWidgetsExtension" */;
+			buildPhases = (
+				6900EECC3002936C0005A39E /* Sources */,
+				6900EECD3002936C0005A39E /* Frameworks */,
+				6900EECE3002936C0005A39E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				6900EED33002936D0005A39E /* WastedWidgets */,
+			);
+			name = WastedWidgetsExtension;
+			packageProductDependencies = (
+			);
+			productName = WastedWidgetsExtension;
+			productReference = 6900EED03002936C0005A39E /* WastedWidgetsExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		6953D9832FC5D22C00D38AF0 /* Wasted */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 6953D98F2FC5D22E00D38AF0 /* Build configuration list for PBXNativeTarget "Wasted" */;
@@ -223,6 +299,7 @@
 			dependencies = (
 				6953D9A02FC5D31200D38AF0 /* PBXTargetDependency */,
 				6953D9BF2FC5D36B00D38AF0 /* PBXTargetDependency */,
+				6900EEDE3002936F0005A39E /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				6953D9862FC5D22C00D38AF0 /* Wasted */,
@@ -308,9 +385,12 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2650;
+				LastSwiftUpdateCheck = 2660;
 				LastUpgradeCheck = 2650;
 				TargetAttributes = {
+					6900EECF3002936C0005A39E = {
+						CreatedOnToolsVersion = 26.6;
+					};
 					6953D9832FC5D22C00D38AF0 = {
 						CreatedOnToolsVersion = 26.5;
 					};
@@ -344,11 +424,19 @@
 				6953D9952FC5D31200D38AF0 /* DeviceActivityMonitorExt */,
 				6953D9AA2FC5D36A00D38AF0 /* LiveActivityExtExtension */,
 				6953D9C82FC5D3C200D38AF0 /* WastedTests */,
+				6900EECF3002936C0005A39E /* WastedWidgetsExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		6900EECE3002936C0005A39E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		6953D9822FC5D22C00D38AF0 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -380,6 +468,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		6900EECC3002936C0005A39E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		6953D9802FC5D22C00D38AF0 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -411,6 +506,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		6900EEDE3002936F0005A39E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6900EECF3002936C0005A39E /* WastedWidgetsExtension */;
+			targetProxy = 6900EEDD3002936F0005A39E /* PBXContainerItemProxy */;
+		};
 		6953D9A02FC5D31200D38AF0 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 6953D9952FC5D31200D38AF0 /* DeviceActivityMonitorExt */;
@@ -429,6 +529,68 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		6900EEE03002936F0005A39E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = WastedWidgets/WastedWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = ZZZ87SSQ8S;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = WastedWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = WastedWidgets;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sanskar.Wasted.WastedWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		6900EEE13002936F0005A39E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = WastedWidgets/WastedWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = ZZZ87SSQ8S;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = WastedWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = WastedWidgets;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sanskar.Wasted.WastedWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		6953D98D2FC5D22E00D38AF0 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -787,6 +949,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		6900EEE33002936F0005A39E /* Build configuration list for PBXNativeTarget "WastedWidgetsExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6900EEE03002936F0005A39E /* Debug */,
+				6900EEE13002936F0005A39E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		6953D97F2FC5D22B00D38AF0 /* Build configuration list for PBXProject "Wasted" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

@@ -84,7 +84,13 @@ struct GuessView: View {
         guard
             let seconds = selected,
             let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID)
-        else { return }
+        else {
+            // The guess is the ONLY input to the Reality Check. Lose it and the
+            // conversion moment never fires, silently, forever.
+            EventLog.error(.onboarding, "guess NOT SAVED — reality check will never fire")
+            return
+        }
         defaults.set(seconds, forKey: AppGroupKeys.dailyGuessKey)
+        EventLog.log(.onboarding, "guess saved: \(seconds / 3600)h")
     }
 }

@@ -14,6 +14,10 @@ enum AppGroupKeys {
     static let daysTrackedKey = "days_tracked"
     static let historyKey = "usage_history"
     static let nudgeRecordsKey = "nudge_records"
+    // Which copy lines have already been sent today, so a nudge never repeats
+    // itself while an unused line exists. Day-scoped by its companion key.
+    static let nudgeLinesKey = "nudge_lines_used"
+    static let nudgeLinesDateKey = "nudge_lines_date"
 
     // MARK: - Combined total series
     // There is no "app opened/closed" signal on iOS — the island can only be
@@ -22,32 +26,38 @@ enum AppGroupKeys {
     // ("total:N") and fires every minute of combined usage. That series is
     // what keeps the island and the home number fresh; per-app events are
     // only for nudges and the per-app breakdown.
+    // The actual minute grids live in ThresholdPlan — the spacing is a tuning
+    // decision with a cap to dodge, not a constant.
     static let totalEventPrefix = "total"
     static let combinedSecondsKey = "combined_seconds"
     static let combinedSecondsDateKey = "combined_seconds_date"
 
-    // 1-min fidelity through 2h, 2-min to 4h, 5-min to 8h. The taper keeps the
-    // whole registration (this + per-app events) under DeviceActivity's
-    // undocumented event cap. 228 events.
-    static let totalThresholdMinutes: [Int] =
-        Array(1...120) +
-        Array(stride(from: 122, through: 240, by: 2)) +
-        Array(stride(from: 245, through: 480, by: 5))
+    // MARK: - Day boundary
+    //
+    // Nothing we control runs at midnight. The monitor extension's
+    // intervalDidEnd fires, but it cannot end the activity (ActivityKit is
+    // unreachable from that process), and the main app may not run until
+    // morning — which is exactly why the island was found still showing
+    // yesterday's 3h at 6am.
+    //
+    // The one thing that DOES happen with no process running is the system's
+    // staleDate re-render. So the island's staleDate is pinned to midnight, and
+    // the view compares the day baked into the activity's attributes against the
+    // day it's being rendered on. If they differ, the day is over and the card
+    // reads 0m. That is the whole midnight reset — no background task, no luck.
+    static func dayString(_ date: Date = Date()) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
 
-    // Staleness window for the island's number: while the user is inside a
-    // tracked app the next "total:N" event should land within one threshold
-    // gap plus a reporting margin. No event by then means they left the
-    // tracked apps — the (still exact) number dims to read as "not counting
-    // right now".
-    static let reportingMarginSeconds = 90
-    static let fallbackStaleSeconds = 600
-
-    static func staleSeconds(afterTotalSeconds total: Int) -> Int {
-        let minutes = total / 60
-        guard let next = totalThresholdMinutes.first(where: { $0 > minutes }) else {
-            return fallbackStaleSeconds
-        }
-        return min(next * 60 - total + reportingMarginSeconds, fallbackStaleSeconds)
+    // A small cushion past 00:00 so the re-render can never land on the last
+    // instant of the old day and read the stale date as still current.
+    static func nextMidnight(after date: Date = Date()) -> Date {
+        let calendar = Calendar.current
+        let midnight = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: date))
+            ?? date.addingTimeInterval(24 * 3600)
+        return midnight.addingTimeInterval(30)
     }
 
     // The receipt measures against waking hours, not the full 24.
@@ -66,16 +76,21 @@ enum AppGroupKeys {
         "app_icon_\(appName)"
     }
 
+    // The ONE duration format, everywhere: "47m", "1h 23m", "2h".
+    //
+    // There used to be a second one, formattedClock, which rendered the island
+    // and lock screen as "1:23". On a Lock Screen that sits directly beneath the
+    // system clock reading 20:48, "1:23" does not read as a duration — it reads
+    // as a time of day. A colon between two numbers means o'clock to everyone
+    // who has ever looked at a phone, and no amount of context beats that.
+    //
+    // A bare "1h 0m" is also gone: nobody says "one hour zero minutes".
     static func formattedDuration(_ seconds: Int) -> String {
-        let s = max(0, seconds)
-        let h = s / 3600
-        let m = (s % 3600) / 60
-        if h > 0 { return "\(h)h \(m)m" }
-        return "\(m)m"
-    }
-
-    static func formattedTime(from accumulatedStart: Date) -> (text: String, isAtLeast1Hour: Bool) {
-        let seconds = max(0, Int(Date().timeIntervalSince(accumulatedStart)))
-        return (formattedDuration(seconds), seconds >= 3600)
+        let total = max(0, seconds)
+        let hours = total / 3600
+        let minutes = (total % 3600) / 60
+        if hours == 0 { return "\(minutes)m" }
+        if minutes == 0 { return "\(hours)h" }
+        return "\(hours)h \(minutes)m"
     }
 }

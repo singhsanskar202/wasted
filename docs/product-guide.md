@@ -8,7 +8,7 @@
 
 **Launch model:** free 7-day full trial, then $9.99 one-time lifetime purchase (no subscription).
 
-**Target launch:** Q3 2026, with Family Controls distribution entitlement approval.
+**Target launch:** July 31, 2026, with Family Controls distribution entitlement approval.
 
 ---
 

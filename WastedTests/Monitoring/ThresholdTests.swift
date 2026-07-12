@@ -3,52 +3,58 @@ import XCTest
 
 final class ThresholdTests: XCTestCase {
 
-    func test_thresholdMinutes_isStrictlyAscending() {
-        let thresholds = ActivityScheduler.thresholdMinutes
-        for i in 1..<thresholds.count {
-            XCTAssertGreaterThan(thresholds[i], thresholds[i - 1])
+    func test_everyPlan_isStrictlyAscending() {
+        for plan in ThresholdPlan.ladder {
+            for series in [plan.combined, plan.perApp] {
+                for i in 1..<series.count {
+                    XCTAssertGreaterThan(series[i], series[i - 1], "\(plan.name) is not ascending")
+                }
+            }
         }
     }
 
-    func test_thresholdMinutes_everyNudgeMultipleIsPresent() {
-        let thresholds = Set(ActivityScheduler.thresholdMinutes)
-        for minutes in stride(from: 30, through: 480, by: 30) {
-            XCTAssertTrue(thresholds.contains(minutes), "missing 30-min multiple: \(minutes)")
+    // A plan that skips a 15-minute multiple silently swallows that nudge — the
+    // gate can only see thresholds that were actually registered.
+    func test_everyPlan_landsOnEveryNudgeStep() {
+        for plan in ThresholdPlan.ladder {
+            XCTAssertTrue(plan.coversNudgeSteps, "\(plan.name) misses a nudge step")
         }
     }
 
-    func test_thresholdMinutes_count() {
-        // 1...5 by 1 (5) + 10...120 by 5 (23) + 130...240 by 10 (12) + 255...480 by 15 (16)
-        XCTAssertEqual(ActivityScheduler.thresholdMinutes.count, 56)
-    }
-
-    func test_thresholdMinutes_bounds() {
-        XCTAssertEqual(ActivityScheduler.thresholdMinutes.first, 1)
-        XCTAssertEqual(ActivityScheduler.thresholdMinutes.last, 480)
-    }
-
-    // MARK: - Combined total series
-
-    func test_totalThresholds_isStrictlyAscending() {
-        let thresholds = AppGroupKeys.totalThresholdMinutes
-        for i in 1..<thresholds.count {
-            XCTAssertGreaterThan(thresholds[i], thresholds[i - 1])
+    // The old grids stopped at 480 minutes, so a day heavier than 8h froze the
+    // number at 8h forever — the worst failure an app built on "the number only
+    // goes up" can have.
+    func test_everyPlan_runsToTwelveHours() {
+        for plan in ThresholdPlan.ladder {
+            XCTAssertEqual(plan.combined.last, 720, "\(plan.name) combined stops early")
+            XCTAssertEqual(plan.perApp.last, 720, "\(plan.name) per-app stops early")
         }
     }
 
-    func test_totalThresholds_minuteFidelityForFirstTwoHours() {
-        let thresholds = AppGroupKeys.totalThresholdMinutes
-        XCTAssertEqual(Array(thresholds.prefix(120)), Array(1...120))
+    // The ladder only means anything if each rung is genuinely cheaper than the
+    // one above — otherwise a rejected plan falls back to an equally rejected one.
+    func test_ladder_getsStrictlyCheaperAtEveryStep() {
+        for appCount in 1...5 {
+            let costs = ThresholdPlan.ladder.map { $0.eventCount(appCount: appCount) }
+            for i in 1..<costs.count {
+                XCTAssertLessThan(costs[i], costs[i - 1], "ladder does not shrink at \(appCount) apps")
+            }
+        }
     }
 
-    func test_totalThresholds_boundsAndBudget() {
-        let thresholds = AppGroupKeys.totalThresholdMinutes
-        XCTAssertEqual(thresholds.first, 1)
-        XCTAssertEqual(thresholds.last, 480)
-        // 1...120 (120) + 122...240 by 2 (60) + 245...480 by 5 (48).
-        // Keep the whole registration well under DeviceActivity's
-        // undocumented event cap even with several tracked apps.
-        XCTAssertEqual(thresholds.count, 228)
+    func test_finePlan_firesEveryMinuteForTheFirstEightHours() {
+        XCTAssertEqual(Array(ThresholdPlan.fine.combined.prefix(480)), Array(1...480))
+    }
+
+    // The reported bug: at ~2h50m the widget updated every 5-8 minutes, because
+    // that band was on 2-minute steps. Every plan now covers 2h50m at 1-minute
+    // spacing or better.
+    func test_everyPlan_hasMinuteFidelityWhereTheUserNoticedTheLag() {
+        for plan in ThresholdPlan.ladder {
+            XCTAssertEqual(Array(plan.combined.prefix(120)), Array(1...120), "\(plan.name)")
+        }
+        XCTAssertTrue(ThresholdPlan.fine.combined.contains(170))
+        XCTAssertTrue(ThresholdPlan.medium.combined.contains(170))
     }
 
     // MARK: - Island clock format

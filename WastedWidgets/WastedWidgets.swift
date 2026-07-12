@@ -18,12 +18,21 @@ struct WastedTimelineProvider: TimelineProvider {
         completion(makeEntry())
     }
 
-    // Hourly backstop only — the real freshness comes from the monitor extension
-    // reloading timelines on every threshold crossing.
+    // Two entries: the total now, and zero at midnight.
+    //
+    // The midnight entry is what resets the widget on the day boundary without
+    // anything having to run — WidgetKit renders it on schedule. Without it the
+    // widget would keep yesterday's number until the next reload happened to
+    // land, which is the same bug the island had.
+    //
+    // Between now and midnight the number only changes when usage does, and the
+    // monitor extension reloads the timeline on every threshold crossing. So no
+    // periodic backstop is needed: if nothing reloads us, nothing changed.
     func getTimeline(in context: Context, completion: @escaping (Timeline<ScreenTimeEntry>) -> Void) {
-        let entry = makeEntry()
-        let nextRefresh = Calendar.current.date(byAdding: .hour, value: 1, to: Date())!
-        completion(Timeline(entries: [entry], policy: .after(nextRefresh)))
+        let midnight = AppGroupKeys.nextMidnight()
+        let current = makeEntry()
+        let fresh = ScreenTimeEntry(date: midnight, totalSeconds: 0, isExpired: current.isExpired)
+        completion(Timeline(entries: [current, fresh], policy: .after(midnight)))
     }
 
     private func makeEntry() -> ScreenTimeEntry {

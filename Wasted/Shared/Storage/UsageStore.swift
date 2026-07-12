@@ -118,6 +118,21 @@ final class UsageStore {
         defaults.set(data, forKey: AppGroupKeys.nudgeRecordsKey)
     }
 
+    // Copy lines already sent today. Day-scoped like combinedSeconds: a stale
+    // set would silence today's best lines because yesterday used them.
+    func usedNudgeLines() -> Set<Int> {
+        guard defaults.string(forKey: AppGroupKeys.nudgeLinesDateKey) == DailyUsage.todayString() else {
+            return []
+        }
+        return Set(defaults.array(forKey: AppGroupKeys.nudgeLinesKey) as? [Int] ?? [])
+    }
+
+    func markNudgeLine(_ id: Int) {
+        let used = usedNudgeLines().union([id])
+        defaults.set(Array(used), forKey: AppGroupKeys.nudgeLinesKey)
+        defaults.set(DailyUsage.todayString(), forKey: AppGroupKeys.nudgeLinesDateKey)
+    }
+
     private func loadNudgeRecords() -> [String: NudgeRecord] {
         guard
             let data = defaults.data(forKey: AppGroupKeys.nudgeRecordsKey),

@@ -89,13 +89,12 @@ final class LiveActivityManager {
     private static func makeContent(totalSeconds: Int) -> ActivityContent<TimeTrackerAttributes.ContentState> {
         let now = Date()
         let state = TimeTrackerAttributes.ContentState(totalSeconds: totalSeconds, confirmedAt: now)
-        // The number stays exact forever — it just gets old, because only the
-        // main app can refresh it. staleDate is when the view dims to admit the
-        // total is behind, not when it stops being true.
-        return ActivityContent(
-            state: state,
-            staleDate: now.addingTimeInterval(Double(AppGroupKeys.confirmedFreshSeconds))
-        )
+        // staleDate is pinned to MIDNIGHT, not to a freshness window. It is the
+        // only re-render we get without a running process, and the day rollover
+        // is the one moment the number becomes not-just-old but flatly wrong.
+        // Spending it on a mid-day dim would have left the island showing
+        // yesterday's total all night — the bug this replaces.
+        return ActivityContent(state: state, staleDate: AppGroupKeys.nextMidnight(after: now))
     }
 
     // Runs an async body to completion from a synchronous, soon-to-be-suspended
@@ -121,9 +120,5 @@ final class LiveActivityManager {
         defaults.set(([entry] + previous).prefix(12).joined(separator: "\n"), forKey: "debug_la")
     }
 
-    private static func dayString() -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: Date())
-    }
+    private static func dayString() -> String { AppGroupKeys.dayString() }
 }

@@ -83,6 +83,19 @@
 			);
 			target = 6900EECF3002936C0005A39E /* WastedWidgetsExtension */;
 		};
+		6900EEE43002936F0005A39E /* Exceptions for "Wasted" folder in "WastedWidgetsExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Shared/Models/AppGroupKeys.swift,
+				Shared/Models/DailyUsage.swift,
+				Shared/Models/HourlyUsage.swift,
+				Shared/Nudges.swift,
+				Shared/Storage/UsageStore.swift,
+				Shared/TrialClock.swift,
+				Theme.swift,
+			);
+			target = 6900EECF3002936C0005A39E /* WastedWidgetsExtension */;
+		};
 		6953D9A22FC5D31200D38AF0 /* Exceptions for "DeviceActivityMonitorExt" folder in "DeviceActivityMonitorExt" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -112,19 +125,6 @@
 				Shared/TrialClock.swift,
 			);
 			target = 6953D9952FC5D31200D38AF0 /* DeviceActivityMonitorExt */;
-		};
-		6900EEE43002936F0005A39E /* Exceptions for "Wasted" folder in "WastedWidgetsExtension" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Shared/Models/AppGroupKeys.swift,
-				Shared/Models/DailyUsage.swift,
-				Shared/Models/HourlyUsage.swift,
-				Shared/Nudges.swift,
-				Shared/Storage/UsageStore.swift,
-				Shared/TrialClock.swift,
-				Theme.swift,
-			);
-			target = 6900EECF3002936C0005A39E /* WastedWidgetsExtension */;
 		};
 		6953DA162FC5E0B500D38AF0 /* Exceptions for "Wasted" folder in "LiveActivityExtExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;

@@ -62,7 +62,11 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         let trialState = TrialClock.state(firstLaunch: store.firstLaunchDate(), unlocked: store.isUnlocked())
         if trialState != .expired {
             if NudgeGate.shouldNudge(minutes: minutes, last: store.lastNudge(for: appIndex)) {
-                notificationScheduler.scheduleNudge(appName: appName, minutes: minutes)
+                // Pick a line today hasn't spent yet, then burn it — a nudge the
+                // user has already read is a nudge they scroll past.
+                let line = NudgeCopy.next(minutes: minutes, used: store.usedNudgeLines())
+                notificationScheduler.scheduleNudge(appName: appName, minutes: minutes, body: line.text)
+                store.markNudgeLine(line.id)
                 store.recordNudge(minutes: minutes, for: appIndex)
             }
 

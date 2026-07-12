@@ -57,6 +57,18 @@ struct TimeTrackerWidget: Widget {
 
 private let alarmRed = Color(red: 1.0, green: 0.36, blue: 0.36)
 
+// The activity's day is baked into its attributes at creation. If the calendar
+// has moved past it, every number in the state belongs to a day that is over —
+// so the card reads 0m, not yesterday's total.
+//
+// This is the entire midnight reset, and it needs no process to be running. The
+// monitor extension can't end the activity, and the app may not launch until
+// morning; but the system re-renders this view when staleDate passes, and
+// staleDate is pinned to midnight. That render is where the day flips.
+private func confirmedSeconds(_ context: ActivityViewContext<TimeTrackerAttributes>) -> Int {
+    context.attributes.day == AppGroupKeys.dayString() ? context.state.totalSeconds : 0
+}
+
 // MARK: - Shared card
 
 private struct WastedCard: View {
@@ -64,7 +76,7 @@ private struct WastedCard: View {
     let heroSize: CGFloat
 
     var body: some View {
-        let total = context.state.totalSeconds
+        let total = confirmedSeconds(context)
         let fraction = min(1.0, Double(total) / Double(AppGroupKeys.awakeDayHours * 3600))
         let percent = Int((fraction * 100).rounded())
 
@@ -147,10 +159,15 @@ private struct ConfirmedTimeText: View {
     let fontSize: CGFloat
 
     var body: some View {
-        Text(AppGroupKeys.formattedClock(context.state.totalSeconds))
+        // A rolled-over day renders 0m at FULL opacity: that zero is a fresh,
+        // true number, not a stale one. Only a same-day total that has gone
+        // stale gets dimmed.
+        let isNewDay = context.attributes.day != AppGroupKeys.dayString()
+
+        Text(AppGroupKeys.formattedClock(confirmedSeconds(context)))
             .font(.system(size: fontSize, weight: .bold))
             .monospacedDigit()
             .lineLimit(1)
-            .opacity(context.isStale ? 0.55 : 1.0)
+            .opacity(context.isStale && !isNewDay ? 0.55 : 1.0)
     }
 }

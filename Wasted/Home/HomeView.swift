@@ -134,7 +134,10 @@ struct HomeView: View {
                 .padding(.top, 10)
 
             if let equivalent = EquivalentTaskMapper.equivalent(for: totalSeconds) {
-                MirrorLine(text: "that's \(equivalent.description).")
+                // The mapper returns a whole sentence now — past 4h it stops
+                // comparing and states the annual cost instead, which doesn't
+                // fit a "that's …" fragment.
+                MirrorLine(text: equivalent.line)
                     .padding(.top, 22)
                     .transition(.opacity)
             }

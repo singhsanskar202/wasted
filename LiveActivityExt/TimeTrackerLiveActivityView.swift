@@ -102,8 +102,8 @@ private struct WastedCard: View {
 
             // The confrontation line, centered under the hero like HomeView.
             Group {
-                if let eq = EquivalentTaskMapper.equivalent(for: total) {
-                    Text("that's \(eq.emoji) \(eq.description).")
+                if let equivalent = EquivalentTaskMapper.equivalent(for: total) {
+                    Text(equivalent.fullText)
                 } else {
                     Text("the number only goes up from here.")
                 }
@@ -111,8 +111,11 @@ private struct WastedCard: View {
             .font(.system(size: 14, weight: .regular, design: .serif))
             .italic()
             .foregroundStyle(.white.opacity(0.75))
-            .lineLimit(1)
-            .minimumScaleFactor(0.85)
+            .multilineTextAlignment(.center)
+            // Two lines: past 4h the line becomes "N days a year, at this pace. /
+            // you don't get them back."
+            .lineLimit(2)
+            .minimumScaleFactor(0.8)
             .padding(.top, 8)
 
             // Grounding line — how much of the waking day is gone.

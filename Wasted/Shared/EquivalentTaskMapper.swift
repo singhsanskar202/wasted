@@ -1,54 +1,66 @@
 import Foundation
 
-// What the wasted time was worth, in something you can picture.
+// What the time was worth — and, past a point, what it costs you.
 //
-// The old version was a table of thresholds with FIXED text, and it picked the
-// largest threshold at or below the total — so 1h 23m displayed the 1h row,
-// "a book chapter (25 pages)", which was wrong twice: it silently discarded the
-// extra 23 minutes, and 25 pages an hour is about half of what an average adult
-// actually reads. Every value between two thresholds understated the cost, which
-// is the one direction this app must never err in.
+// TWO THINGS WERE WRONG BEFORE THIS.
 //
-// So the quantities are now RATES, and they scale with the real number. The
-// claim is always true for the time actually shown next to it.
+// 1. It suggested hobbies. "you could have read 69 pages" / "a 13 km run" /
+//    "a 15-minute meditation" is the app OFFERING A SOLUTION, which the product
+//    guide explicitly rules out ("never blocks, never shames, never offers a
+//    solution — it just keeps count"). It's also a lie the reader can feel: you
+//    were never going to run 13 km, so the guilt bounces straight off.
+//
+// 2. A SCALED COUNT IS NEVER RELATABLE. Nobody can picture 69 pages. Everybody
+//    can picture ONE WHOLE THING — an episode, a match, a film. So a comparison
+//    is only ever a single plausible thing, never a quantity.
+//
+// And when the number grows past what any single thing can hold, the comparison
+// stops being credible at all — "2.5 films" means nothing. That's the moment to
+// stop comparing and start COMPOUNDING: what this pace costs across a year. No
+// counterfactual, no assumption about who you are, nothing to argue with. It's
+// also the exact move the app's own Hook already makes — "that's 60 days a year.
+// gone." — so the first thing a user ever reads and the line they see every day
+// finally say the same thing.
 struct EquivalentTaskMapper {
     struct Equivalent {
-        let description: String
-        let emoji: String
+        let emoji: String       // empty for the reckoning — it isn't a "thing"
+        let line: String        // a complete sentence, not a fragment
 
-        var fullText: String { "\(emoji) \(description)" }
+        var fullText: String {
+            emoji.isEmpty ? line : "\(emoji) \(line)"
+        }
     }
 
-    // ~240 words a minute is the average adult reading speed; a paperback page
-    // runs ~280 words. That's a shade under a page a minute — call it 50 pages
-    // an hour, and round down, because this number is a floor.
-    private static func pages(_ minutes: Int) -> Int {
-        max(1, Int(Double(minutes) * 0.83))
-    }
-
-    // An easy jog: 6.5 minutes a kilometre. A 5K lands at ~32 minutes, which is
-    // where most people actually are.
-    private static func kilometres(_ minutes: Int) -> Int {
-        max(1, Int((Double(minutes) / 6.5).rounded()))
-    }
+    // Past this, no single thing is a credible comparison, so we stop making
+    // one. Four hours is also where the Hook's own number lives.
+    private static let beyondComparison = 240  // minutes
 
     static func equivalent(for totalSeconds: Int) -> Equivalent? {
         let minutes = max(0, totalSeconds) / 60
-        // Under ten minutes there is no honest comparison to make, and inventing
-        // one would cheapen the ones that follow.
+        // Under ten minutes there's no honest comparison to make, and inventing
+        // one would cheapen every line that follows.
         guard minutes >= 10 else { return nil }
 
-        switch minutes {
-        case ..<30:
-            return Equivalent(description: "a \(minutes)-minute meditation", emoji: "🧘")
-        case ..<60:
-            return Equivalent(description: "a \(kilometres(minutes)) km run", emoji: "🏃")
-        case ..<180:
-            return Equivalent(description: "\(pages(minutes)) pages of a book", emoji: "📖")
-        case ..<360:
-            return Equivalent(description: "\(pages(minutes)) pages — half a novel", emoji: "📖")
-        default:
-            return Equivalent(description: "\(pages(minutes)) pages — a whole novel", emoji: "📖")
+        if minutes >= beyondComparison {
+            return Equivalent(emoji: "", line: reckoning(minutes))
         }
+
+        // Each of these is ONE thing, and roughly this long in real life — so the
+        // claim is true, and the reader can see it without doing any arithmetic.
+        switch minutes {
+        case ..<25:  return Equivalent(emoji: "☕️", line: "that's a coffee with someone.")
+        case ..<45:  return Equivalent(emoji: "📺", line: "that's an episode.")
+        case ..<75:  return Equivalent(emoji: "🚇", line: "that's your commute. both ways.")
+        case ..<105: return Equivalent(emoji: "⚽️", line: "that's a football match.")
+        case ..<165: return Equivalent(emoji: "🎬", line: "that's a film.")
+        default:     return Equivalent(emoji: "✈️", line: "that's a flight to another city.")
+        }
+    }
+
+    // Not "you could have" — "here is the bill." A day's pace, extended across a
+    // year, in days. Unarguable, and the one cost that is genuinely unrecoverable.
+    private static func reckoning(_ minutes: Int) -> String {
+        let daysPerYear = Int((Double(minutes) * 365 / (24 * 60)).rounded())
+        return "\(daysPerYear) days a year, at this pace.\nyou don't get them back."
     }
 }

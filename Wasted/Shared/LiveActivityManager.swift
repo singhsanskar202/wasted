@@ -86,9 +86,20 @@ final class LiveActivityManager {
             }
             guard let target = activities.first(where: { $0.id == id }) else { return }
             await target.update(content)
-            Self.log("main updated id=\(id) total=\(totalSeconds)")
+            EventLog.log(.island, "updated id=\(id) total=\(totalSeconds)s")
 
         case .replace:
+            // WHY we replaced is the whole diagnosis. "The island vanished" took
+            // hours to explain; a line saying `state=ended age=9h` would have
+            // said it instantly.
+            let why = activities.isEmpty
+                ? "no activity exists"
+                : activities.map {
+                    let ageMinutes = Int(Date().timeIntervalSince($0.attributes.startedAt) / 60)
+                    return "id=\($0.id) day=\($0.attributes.day) state=\($0.activityState) age=\(ageMinutes)m"
+                }.joined(separator: " | ")
+            EventLog.log(.island, "REPLACING — \(why)")
+
             for dead in activities {
                 await dead.end(nil, dismissalPolicy: .immediate)
             }
@@ -97,7 +108,13 @@ final class LiveActivityManager {
                 content: content,
                 pushType: nil
             )
-            Self.log("main created id=\(activity?.id ?? "nil") total=\(totalSeconds) replaced=\(activities.count)")
+            if let activity {
+                EventLog.log(.island, "CREATED id=\(activity.id) total=\(totalSeconds)s")
+            } else {
+                // request() throws if the user disabled Live Activities, or if
+                // iOS is rate-limiting. Silent until now.
+                EventLog.error(.island, "Activity.request() FAILED — no island. enabled=\(ActivityAuthorizationInfo().areActivitiesEnabled)")
+            }
         }
     }
 
@@ -128,7 +145,7 @@ final class LiveActivityManager {
         let content = Self.makeContent(totalSeconds: totalSeconds)
         runBlocking(timeout: 4) {
             await existing.update(content)
-            Self.log("ext update: applied to id=\(existing.id) total=\(totalSeconds)")
+            EventLog.log(.island, "ext update landed (Apple lifted the restriction!) id=\(existing.id)")
         }
     }
 
@@ -176,15 +193,6 @@ final class LiveActivityManager {
             semaphore.signal()
         }
         return semaphore.wait(timeout: .now() + timeout) == .success
-    }
-
-    // TEMP diagnostic — keeps the last 12 events in the App Group so a device
-    // pull can show whether extension updates actually reach ActivityKit.
-    static func log(_ message: String) {
-        guard let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID) else { return }
-        let entry = "\(Date()): \(message)"
-        let previous = (defaults.string(forKey: "debug_la") ?? "").components(separatedBy: "\n")
-        defaults.set(([entry] + previous).prefix(12).joined(separator: "\n"), forKey: "debug_la")
     }
 
     private static func dayString() -> String { AppGroupKeys.dayString() }

@@ -39,6 +39,12 @@ struct WastedTimelineProvider: TimelineProvider {
         let store = UsageStore()
         let totalSeconds = store.totalSecondsAllApps()
         let trialState = TrialClock.state(firstLaunch: store.firstLaunchDate(), unlocked: store.isUnlocked())
+        // The widget is the one surface the monitor extension CAN drive, so it
+        // should be the most accurate thing we ship. Logging what it actually
+        // renders is how we find out whether WidgetKit honours our reloads or
+        // quietly throttles them — the open question behind "it updates every
+        // 5-8 minutes".
+        EventLog.log(.widget, "timeline built total=\(totalSeconds)s expired=\(trialState == .expired)")
         return ScreenTimeEntry(date: Date(), totalSeconds: totalSeconds, isExpired: trialState == .expired)
     }
 }

@@ -15,7 +15,13 @@ final class ReceiptScheduler {
 
         var comps = Calendar.current.dateComponents([.year, .month, .day], from: now)
         comps.hour = AppGroupKeys.receiptHour
-        guard let fireDate = Calendar.current.date(from: comps), fireDate > now else { return }
+        guard let fireDate = Calendar.current.date(from: comps), fireDate > now else {
+            // Past 9pm the receipt can no longer be scheduled for today. Silent
+            // until now — and "why did I never get a receipt?" is a question the
+            // log has to be able to answer.
+            EventLog.log(.receipt, "not scheduled — past \(AppGroupKeys.receiptHour):00 already")
+            return
+        }
 
         let content = UNMutableNotificationContent()
         content.title = "today's receipt"
@@ -29,5 +35,6 @@ final class ReceiptScheduler {
         UNUserNotificationCenter.current().add(
             UNNotificationRequest(identifier: Self.identifier, content: content, trigger: trigger)
         )
+        EventLog.log(.receipt, "scheduled for \(AppGroupKeys.receiptHour):00 — \"\(receipt.summaryLine)\"")
     }
 }

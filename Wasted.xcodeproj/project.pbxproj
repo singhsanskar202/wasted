@@ -86,6 +86,7 @@
 		6900EEE43002936F0005A39E /* Exceptions for "Wasted" folder in "WastedWidgetsExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Shared/Diagnostics/EventLog.swift,
 				Shared/Models/AppGroupKeys.swift,
 				Shared/Models/DailyUsage.swift,
 				Shared/Models/HourlyUsage.swift,
@@ -114,6 +115,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Shared/DailyReceipt.swift,
+				Shared/Diagnostics/EventLog.swift,
 				Shared/LiveActivity/TimeTrackerAttributes.swift,
 				Shared/LiveActivityManager.swift,
 				Shared/Models/AppGroupKeys.swift,

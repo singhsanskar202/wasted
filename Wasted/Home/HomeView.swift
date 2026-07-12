@@ -310,6 +310,7 @@ struct HomeView: View {
         // Setting this presents the full-screen moment; the haptic lives in the
         // view so it fires with the reveal, not with the state change.
         realityCheck = check
+        EventLog.log(.trial, "REALITY CHECK shown — \(check.guessLine) \(check.realityLine) \(check.deltaLine)")
     }
 
     private func maybeAutoShowReceipt() {

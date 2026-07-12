@@ -80,8 +80,16 @@ struct NotificationPermissionView: View {
     }
 
     private func requestNotificationPermission() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
             DispatchQueue.main.async {
+                // One-shot on iOS: if this is denied the app can never ask again,
+                // and every nudge and receipt silently goes nowhere for the
+                // lifetime of the install. Worth knowing which users that is.
+                if granted {
+                    EventLog.log(.onboarding, "notifications GRANTED")
+                } else {
+                    EventLog.error(.onboarding, "notifications DENIED — nudges and receipts will never be seen. \(error?.localizedDescription ?? "")")
+                }
                 // The heaviest haptic in the app used to land on DoneView. It
                 // lands here instead — this is the moment the mirror switches on.
                 granted ? Haptics.heavy() : Haptics.warning()

@@ -39,8 +39,11 @@ final class ActivityScheduler: ObservableObject {
         do {
             try await AuthorizationCenter.shared.requestAuthorization(for: .individual)
             isAuthorized = true
+            EventLog.log(.onboarding, "FamilyControls authorization GRANTED (.individual)")
         } catch {
             isAuthorized = false
+            // Without this the app records nothing, ever. It deserves a loud line.
+            EventLog.error(.onboarding, "FamilyControls authorization DENIED: \(error)")
         }
     }
 
@@ -87,7 +90,7 @@ final class ActivityScheduler: ObservableObject {
             let events = Self.events(for: plan, tokens: tokens)
             do {
                 try center.startMonitoring(.wastedDaily, during: schedule, events: events)
-                LiveActivityManager.log("monitoring started, plan=\(plan.name) events=\(events.count)")
+                EventLog.log(.monitor, "monitoring STARTED plan=\(plan.name) events=\(events.count) apps=\(tokens.count)")
                 // Only a successful registration is current — on failure the
                 // version stays stale so the next foreground retries.
                 let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID)
@@ -95,11 +98,11 @@ final class ActivityScheduler: ObservableObject {
                 defaults?.set(plan.name, forKey: Self.activePlanKey)
                 return
             } catch {
-                LiveActivityManager.log("plan=\(plan.name) REJECTED (\(events.count) events): \(error)")
+                EventLog.error(.monitor, "plan=\(plan.name) REJECTED at \(events.count) events — DeviceActivity cap: \(error)")
                 center.stopMonitoring()
             }
         }
-        LiveActivityManager.log("startMonitoring FAILED — every plan rejected")
+        EventLog.error(.monitor, "startMonitoring FAILED — every plan rejected, THE DAY WILL RECORD NOTHING")
     }
 
     // includesPastActivity everywhere: startMonitoring can re-run mid-day

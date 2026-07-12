@@ -75,6 +75,9 @@ struct WastedApp: App {
                     store.setCombinedSecondsToday(total)
                 }
                 #endif
+                let trial = TrialClock.state(firstLaunch: store.firstLaunchDate(), unlocked: store.isUnlocked())
+                EventLog.log(.app, "FOREGROUND total=\(store.totalSecondsAllApps())s trial=\(trial)")
+
                 let displayNames = loadDisplayNames()
                 ReceiptScheduler().refresh(
                     usage: store.loadTodayUsage(),
@@ -82,6 +85,7 @@ struct WastedApp: App {
                 )
                 Task { await Self.refreshLiveActivity(store: store) }
             case .background:
+                EventLog.log(.app, "BACKGROUND — scheduling refresh + nightly rotation")
                 scheduleAppRefresh()
                 Self.scheduleNightlyRotation()
             default:
@@ -89,7 +93,7 @@ struct WastedApp: App {
             }
         }
         .backgroundTask(.appRefresh(Self.bgRefreshID)) {
-            LiveActivityManager.log("bg refresh GRANTED")
+            EventLog.log(.background, "app refresh GRANTED by iOS")
             await handleAppRefresh()
         }
     }
@@ -98,14 +102,14 @@ struct WastedApp: App {
     // setTaskCompleted or the system stops granting the task entirely.
     private static func runRotation(_ task: BGTask) {
         let work = Task {
-            LiveActivityManager.log("bg rotation GRANTED")
+            EventLog.log(.background, "nightly rotation GRANTED by iOS")
             scheduleNightlyRotation()          // chain tomorrow's
             await refreshLiveActivity(store: UsageStore())
             task.setTaskCompleted(success: true)
         }
         task.expirationHandler = {
             work.cancel()
-            LiveActivityManager.log("bg rotation EXPIRED")
+            EventLog.error(.background, "nightly rotation EXPIRED before it finished")
             task.setTaskCompleted(success: false)
         }
     }

@@ -43,19 +43,25 @@ struct OnboardingContainerView: View {
                     .transition(.opacity)
             case 2:
                 AppPickerView { selection in
+                    EventLog.log(.onboarding, "apps selected: \(selection.applications.count)")
                     ActivityScheduler.shared.startMonitoring(selection: selection)
                     advance()
                 }
                 .transition(.opacity)
             default:
-                NotificationPermissionView { onComplete() }
-                    .transition(.opacity)
+                NotificationPermissionView {
+                    EventLog.log(.onboarding, "onboarding COMPLETE")
+                    onComplete()
+                }
+                .transition(.opacity)
             }
         }
         .animation(.easeInOut(duration: 0.4), value: step)
+        .onAppear { EventLog.log(.onboarding, "onboarding started") }
     }
 
     private func advance() {
         step += 1
+        EventLog.log(.onboarding, "step \(step)")
     }
 }

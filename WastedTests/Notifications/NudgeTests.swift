@@ -49,7 +49,7 @@ final class NudgeTests: XCTestCase {
     func test_title_formatsMinutesAndHours() {
         XCTAssertEqual(NudgeCopy.title(minutes: 15), "15m")
         XCTAssertEqual(NudgeCopy.title(minutes: 90), "1h 30m")
-        XCTAssertEqual(NudgeCopy.title(minutes: 120), "2h 0m")
+        XCTAssertEqual(NudgeCopy.title(minutes: 120), "2h")
     }
 
     func test_everyLine_isLowercaseAndDoesNotShout() {

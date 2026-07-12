@@ -82,11 +82,29 @@ struct SmallWidgetView: View {
 struct CircularWidgetView: View {
     let entry: ScreenTimeEntry
 
+    // "1h 23m" on one line inside a circle this small scales down to something
+    // unreadable. Stack it instead — the circle is tall enough for two lines,
+    // and stacking keeps the digits big.
     var body: some View {
-        Text(entry.isExpired ? "??" : AppGroupKeys.formattedDuration(entry.totalSeconds))
-            .font(.system(size: 15, weight: .bold, design: .serif))
-            .minimumScaleFactor(0.6)
-            .containerBackground(.clear, for: .widget)
+        Group {
+            if entry.isExpired {
+                Text("??")
+                    .font(.system(size: 15, weight: .bold, design: .serif))
+            } else {
+                let hours = entry.totalSeconds / 3600
+                let minutes = (entry.totalSeconds % 3600) / 60
+                VStack(spacing: -2) {
+                    if hours > 0 {
+                        Text("\(hours)h")
+                            .font(.system(size: 14, weight: .bold, design: .serif))
+                    }
+                    Text("\(minutes)m")
+                        .font(.system(size: hours > 0 ? 13 : 17, weight: .bold, design: .serif))
+                }
+                .minimumScaleFactor(0.8)
+            }
+        }
+        .containerBackground(.clear, for: .widget)
     }
 }
 

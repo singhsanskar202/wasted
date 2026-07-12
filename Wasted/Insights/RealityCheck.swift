@@ -79,20 +79,15 @@ struct RealityCheck: Equatable, Identifiable {
             verdict = .sawItComing
         }
 
+        // AppGroupKeys.formattedDuration used to render a whole hour as "1h 0m",
+        // so this type carried its own copy of the formatter just to say "2h" —
+        // the way the onboarding guess chips word it. The shared formatter now
+        // drops the zero minutes, so the duplicate is gone and every surface in
+        // the app speaks one format.
         return RealityCheck(
-            guessLine: "you guessed \(formatted(guessSeconds)).",
-            realityLine: "reality: \(formatted(firstFullDaySeconds)).",
+            guessLine: "you guessed \(AppGroupKeys.formattedDuration(guessSeconds)).",
+            realityLine: "reality: \(AppGroupKeys.formattedDuration(firstFullDaySeconds)).",
             verdict: verdict
         )
-    }
-
-    // Unlike AppGroupKeys.formattedDuration (which always shows "1h 0m" to
-    // match the Dynamic Island convention), the reality check reads a whole
-    // hour as bare "2h" — it echoes the onboarding guess chip's own wording.
-    private static func formatted(_ seconds: Int) -> String {
-        let h = seconds / 3600
-        let m = (seconds % 3600) / 60
-        if h > 0 { return m > 0 ? "\(h)h \(m)m" : "\(h)h" }
-        return "\(m)m"
     }
 }

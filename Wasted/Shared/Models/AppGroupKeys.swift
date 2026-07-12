@@ -76,20 +76,21 @@ enum AppGroupKeys {
         "app_icon_\(appName)"
     }
 
+    // The ONE duration format, everywhere: "47m", "1h 23m", "2h".
+    //
+    // There used to be a second one, formattedClock, which rendered the island
+    // and lock screen as "1:23". On a Lock Screen that sits directly beneath the
+    // system clock reading 20:48, "1:23" does not read as a duration — it reads
+    // as a time of day. A colon between two numbers means o'clock to everyone
+    // who has ever looked at a phone, and no amount of context beats that.
+    //
+    // A bare "1h 0m" is also gone: nobody says "one hour zero minutes".
     static func formattedDuration(_ seconds: Int) -> String {
-        let s = max(0, seconds)
-        let h = s / 3600
-        let m = (s % 3600) / 60
-        if h > 0 { return "\(h)h \(m)m" }
-        return "\(m)m"
-    }
-
-    // The island's format. Bare minutes under an hour ("47m"), h:mm past it
-    // ("2:50") — raw minutes past the hour ("170m") makes the reader do the
-    // division, and the compact island slot has no room for "2h 50m".
-    static func formattedClock(_ seconds: Int) -> String {
-        let minutes = max(0, seconds) / 60
-        guard minutes >= 60 else { return "\(minutes)m" }
-        return "\(minutes / 60):\(String(format: "%02d", minutes % 60))"
+        let total = max(0, seconds)
+        let hours = total / 3600
+        let minutes = (total % 3600) / 60
+        if hours == 0 { return "\(minutes)m" }
+        if minutes == 0 { return "\(hours)h" }
+        return "\(hours)h \(minutes)m"
     }
 }

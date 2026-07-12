@@ -164,10 +164,14 @@ private struct ConfirmedTimeText: View {
         // stale gets dimmed.
         let isNewDay = context.attributes.day != AppGroupKeys.dayString()
 
-        Text(AppGroupKeys.formattedClock(confirmedSeconds(context)))
+        // "1h 23m", never "1:23". This card sits inches under the Lock Screen's
+        // own clock — a colon between two numbers reads as a time of day there,
+        // no matter what the label above it says.
+        Text(AppGroupKeys.formattedDuration(confirmedSeconds(context)))
             .font(.system(size: fontSize, weight: .bold))
             .monospacedDigit()
             .lineLimit(1)
+            .minimumScaleFactor(0.7)   // the compact island slot is narrow
             .opacity(context.isStale && !isNewDay ? 0.55 : 1.0)
     }
 }

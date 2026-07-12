@@ -12,6 +12,13 @@ enum AppGroupKeys {
     // process), but foreground app views can.
     static let appTokensKey = "app_tokens"
     static let daysTrackedKey = "days_tracked"
+    // Tracking health. A log line is not enough: if DeviceActivity rejects the
+    // event registration, the day records NOTHING and the user would just see a
+    // number that never moves and assume the app is broken — or worse, believe
+    // it and think they used their phone less. Both states are surfaced on the
+    // home screen.
+    static let trackingFailedKey = "tracking_failed"        // nothing is being recorded
+    static let trackingDegradedKey = "tracking_degraded"    // total works; no per-app nudges
     static let historyKey = "usage_history"
     static let nudgeRecordsKey = "nudge_records"
     // Which copy lines have already been sent today, so a nudge never repeats

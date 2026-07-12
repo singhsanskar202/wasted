@@ -27,6 +27,8 @@ struct HomeView: View {
     @State private var historicalPeak: HistoricalPeak? = nil
     @State private var trialState: TrialState = .unlocked
     @State private var realityCheck: RealityCheck? = nil
+    @State private var trackingFailed = false
+    @State private var trackingDegraded = false
 
     private let store = UsageStore()
 
@@ -48,6 +50,7 @@ struct HomeView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
+                trackingHealth
                 quote
 
                 ZStack {
@@ -105,6 +108,75 @@ struct HomeView: View {
     }
 
     // MARK: - Sections
+
+    // The only place in this app where red is allowed to mean "something is
+    // broken" rather than "this number is bad".
+    //
+    // If DeviceActivity rejects the event registration, the day records nothing —
+    // and the failure mode is vicious: the number simply never moves. The user
+    // doesn't see an error, they see a low number, and they might BELIEVE it.
+    // An app whose entire promise is "you can't unsee the number" cannot quietly
+    // show a false one.
+    @ViewBuilder
+    private var trackingHealth: some View {
+        if trackingFailed {
+            healthBanner(
+                title: "tracking is off.",
+                detail: "your phone isn't reporting usage. this number is not real.",
+                action: "try again"
+            ) {
+                retryMonitoring()
+            }
+        } else if trackingDegraded {
+            healthBanner(
+                title: "nudges are off.",
+                detail: "too many apps to track individually. the total still counts.",
+                action: "track fewer apps"
+            ) {
+                showingPicker = true
+            }
+        }
+    }
+
+    private func healthBanner(
+        title: String,
+        detail: String,
+        action: String,
+        perform: @escaping () -> Void
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Color.alarm)
+
+            Text(detail)
+                .font(.system(size: 13, weight: .light))
+                .foregroundStyle(Color.inkQuiet)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button(action: {
+                Haptics.light()
+                perform()
+            }) {
+                Text(action)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color.ink)
+                    .padding(.top, 2)
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, 20)
+    }
+
+    private func retryMonitoring() {
+        guard !selection.applications.isEmpty else {
+            showingPicker = true
+            return
+        }
+        ActivityScheduler.shared.startMonitoring(selection: selection)
+        refresh()
+    }
 
     private var quote: some View {
         Text(QuoteBank.todaysQuote)
@@ -285,6 +357,8 @@ struct HomeView: View {
     private func refresh() {
         hourlyData = store.loadTodayHourly()
         totalSeconds = store.totalSecondsAllApps()
+        trackingFailed = store.defaults.bool(forKey: AppGroupKeys.trackingFailedKey)
+        trackingDegraded = store.defaults.bool(forKey: AppGroupKeys.trackingDegradedKey)
         loadInsight()
         updateTrialState()
         updateRealityCheck()

@@ -28,8 +28,13 @@ struct ThresholdPlan {
         combined.count + perApp.count * appCount
     }
 
-    // Every plan must land on every 15-minute multiple, or the nudge at that
-    // mark simply never fires — the gate only sees thresholds that exist.
+    /// A plan with no per-app series can't nudge and can't itemise the receipt.
+    /// Only the last-resort plan is allowed to be one.
+    var tracksIndividualApps: Bool { !perApp.isEmpty }
+
+    // Every plan that tracks apps at all must land on every 15-minute multiple,
+    // or the nudge at that mark simply never fires — the gate only ever sees
+    // thresholds that were actually registered.
     var coversNudgeSteps: Bool {
         guard let last = perApp.last else { return false }
         let steps = stride(from: NudgeGate.stepMinutes, through: last, by: NudgeGate.stepMinutes)
@@ -42,7 +47,9 @@ extension ThresholdPlan {
     // so a heavier day than that silently froze the number at 8h forever — the
     // worst possible failure for an app whose whole promise is that the number
     // keeps going up.
-    static let ladder: [ThresholdPlan] = [fine, medium, coarse]
+    // Finest first. `totalOnly` is the floor: it drops the per-app series (and
+    // with it, nudges) rather than let DeviceActivity's cap take the whole day.
+    static let ladder: [ThresholdPlan] = [fine, medium, coarse, totalOnly]
 
     // Every minute, all the way to 8h. What we want if the cap allows it.
     static let fine = ThresholdPlan(
@@ -63,13 +70,30 @@ extension ThresholdPlan {
             + Array(stride(from: 135, through: 720, by: 15))
     )
 
-    // The floor: what shipped before, extended to 12h. Still fires every minute
-    // for the first 2h, which covers most single sessions.
+    // What shipped before, extended to 12h. Still fires every minute for the
+    // first 2h, which covers most single sessions.
     static let coarse = ThresholdPlan(
         name: "coarse",
         combined: Array(1...120)
             + Array(stride(from: 122, through: 240, by: 2))
             + Array(stride(from: 245, through: 720, by: 5)),
         perApp: Array(1...5) + Array(stride(from: 15, through: 720, by: 15))
+    )
+
+    // THE LAST RESORT. Per-app events are the expensive ones — their count is
+    // multiplied by the number of tracked apps — so someone tracking a lot of
+    // apps can blow DeviceActivity's undocumented cap on the per-app series
+    // alone. When that happens the previous code registered NOTHING and the day
+    // recorded NOTHING, silently.
+    //
+    // This plan gives up the per-app series entirely and keeps the combined one.
+    // That costs the nudges and the receipt's per-app breakdown — a real loss —
+    // but the headline number, the island, the widget and the heatmap all keep
+    // working. A degraded day beats a blank one, and the user is told (see
+    // AppGroupKeys.trackingDegradedKey).
+    static let totalOnly = ThresholdPlan(
+        name: "total-only",
+        combined: Array(1...120) + Array(stride(from: 125, through: 720, by: 5)),
+        perApp: []
     )
 }

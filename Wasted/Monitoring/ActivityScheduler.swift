@@ -86,23 +86,41 @@ final class ActivityScheduler: ObservableObject {
         // undocumented cap, and a throw means the day records nothing — so the
         // fallback isn't defensive padding, it's the difference between a
         // slightly coarser number and no number at all.
+        let defaults = UserDefaults.wastedShared
+
         for plan in ThresholdPlan.ladder {
             let events = Self.events(for: plan, tokens: tokens)
             do {
                 try center.startMonitoring(.wastedDaily, during: schedule, events: events)
                 EventLog.log(.monitor, "monitoring STARTED plan=\(plan.name) events=\(events.count) apps=\(tokens.count)")
+
                 // Only a successful registration is current — on failure the
                 // version stays stale so the next foreground retries.
-                let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID)
-                defaults?.set(Self.registrationSchemaVersion, forKey: Self.registrationVersionKey)
-                defaults?.set(plan.name, forKey: Self.activePlanKey)
+                defaults.set(Self.registrationSchemaVersion, forKey: Self.registrationVersionKey)
+                defaults.set(plan.name, forKey: Self.activePlanKey)
+                defaults.set(false, forKey: AppGroupKeys.trackingFailedKey)
+
+                // The last-resort plan keeps the headline number alive by giving
+                // up the per-app series — so nudges and the receipt breakdown are
+                // gone. That's a real loss and the user is told, not left to
+                // wonder why the nudges stopped.
+                let degraded = !plan.tracksIndividualApps
+                defaults.set(degraded, forKey: AppGroupKeys.trackingDegradedKey)
+                if degraded {
+                    EventLog.error(.monitor, "DEGRADED — per-app series dropped to fit the cap. no nudges, no receipt breakdown.")
+                }
                 return
             } catch {
                 EventLog.error(.monitor, "plan=\(plan.name) REJECTED at \(events.count) events — DeviceActivity cap: \(error)")
                 center.stopMonitoring()
             }
         }
-        EventLog.error(.monitor, "startMonitoring FAILED — every plan rejected, THE DAY WILL RECORD NOTHING")
+
+        // Every plan rejected. Nothing is being recorded — and a number that
+        // never moves is worse than an error, because the user might BELIEVE it.
+        defaults.set(true, forKey: AppGroupKeys.trackingFailedKey)
+        defaults.set(false, forKey: AppGroupKeys.trackingDegradedKey)
+        EventLog.error(.monitor, "startMonitoring FAILED — every plan rejected. NOTHING IS BEING RECORDED.")
     }
 
     // includesPastActivity everywhere: startMonitoring can re-run mid-day

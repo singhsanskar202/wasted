@@ -1,9 +1,38 @@
 import Foundation
 
+extension UserDefaults {
+    // The shared App Group suite, or a survivable substitute.
+    //
+    // This used to be `UserDefaults(suiteName:)!` inline in UsageStore's default
+    // argument. If the App Group entitlement isn't provisioned — a real state,
+    // and exactly the one a signing hiccup produces — that suite is nil and the
+    // force-unwrap CRASHES. And it crashes at `UsageStore()` init, which the main
+    // app, the DeviceActivityMonitor extension, the widget, and the background
+    // tasks all perform, so whichever process touches it first simply dies.
+    //
+    // A provisioning problem should degrade the app, not execute it. Falling back
+    // to .standard means the app runs and stays usable; the cost is that nothing
+    // is shared between processes, so the extension's usage never reaches the UI.
+    // That is a bad day. It is not a crash loop, and the log says exactly which
+    // one it is.
+    static let wastedShared: UserDefaults = {
+        if let shared = UserDefaults(suiteName: AppGroupKeys.appGroupID) {
+            return shared
+        }
+        EventLog.error(
+            .app,
+            "App Group '\(AppGroupKeys.appGroupID)' UNREACHABLE — falling back to local defaults. "
+            + "Usage will NOT be shared between the app, the extension and the widget. "
+            + "Check the App Group entitlement and provisioning profile."
+        )
+        return .standard
+    }()
+}
+
 final class UsageStore {
     let defaults: UserDefaults
 
-    init(defaults: UserDefaults = UserDefaults(suiteName: AppGroupKeys.appGroupID)!) {
+    init(defaults: UserDefaults = .wastedShared) {
         self.defaults = defaults
     }
 
@@ -67,11 +96,61 @@ final class UsageStore {
         return hourly
     }
 
-    func addHourlySeconds(_ value: Int) {
-        let hour = Calendar.current.component(.hour, from: Date())
+    // Usage that crossed a threshold happened in the RUN-UP to the event — not
+    // at the instant iOS got around to telling us about it.
+    //
+    // This used to stamp every delivered second into
+    // `Calendar.component(.hour, from: Date())` — the hour of DELIVERY. With the
+    // extension's measured 5–8 minute delivery lag, usage from 11:55 to 12:07
+    // arriving at 12:09 landed entirely in hour 12 and none in hour 11. The
+    // heatmap and the danger zones — the whole point of which is "WHEN do you
+    // lose time" — were being told the wrong hour.
+    //
+    // So walk the seconds backwards from the event and split them across the
+    // hours they actually spanned. The headline total was never affected by this;
+    // only the hourly attribution was.
+    func addHourlySeconds(_ value: Int, endingAt end: Date = Date()) {
+        guard value > 0 else { return }
         var usage = loadTodayUsage()
-        usage.addHourly(value, hour: hour)
+        for (hour, seconds) in Self.hourlySplit(seconds: value, endingAt: end) {
+            usage.addHourly(seconds, hour: hour)
+        }
         save(usage)
+    }
+
+    /// Splits `seconds` of usage ending at `end` across the clock hours it covers.
+    /// Pure and calendar-injectable so the boundary cases are actually testable.
+    static func hourlySplit(
+        seconds: Int,
+        endingAt end: Date,
+        calendar: Calendar = .current
+    ) -> [Int: Int] {
+        guard seconds > 0 else { return [:] }
+
+        // Never attribute across midnight: yesterday's hours belong to yesterday's
+        // record, which has already been archived.
+        let dayStart = calendar.startOfDay(for: end)
+        let windowStart = max(end.addingTimeInterval(-Double(seconds)), dayStart)
+
+        var split: [Int: Int] = [:]
+        var cursor = windowStart
+        while cursor < end {
+            guard let hour = calendar.dateInterval(of: .hour, for: cursor) else { break }
+            let sliceEnd = min(hour.end, end)
+            let slice = Int(sliceEnd.timeIntervalSince(cursor).rounded())
+            guard slice > 0 else { break }
+            split[calendar.component(.hour, from: cursor), default: 0] += slice
+            cursor = sliceEnd
+        }
+
+        // If the window was clipped at midnight, pin the remainder to hour 0 so
+        // the heatmap still sums to the day's real total rather than quietly
+        // losing minutes.
+        let attributed = split.values.reduce(0, +)
+        if attributed < seconds {
+            split[0, default: 0] += seconds - attributed
+        }
+        return split
     }
 
     // MARK: - History (last 7 days, excluding today)

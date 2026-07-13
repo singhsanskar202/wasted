@@ -70,6 +70,62 @@ enum EventLog {
         return String(data: data, encoding: .utf8) ?? ""
     }
 
+    // MARK: - Getting a tester's log back
+    //
+    // `devicectl` only reaches a phone paired to the developer's own Mac, which is
+    // useless the moment someone else is testing. And uploading logs to a server
+    // would break the promise the whole product rests on — "nothing leaves your
+    // device" — and destroy the "Data Not Collected" privacy label with it.
+    //
+    // So the export is USER-INITIATED: the tester taps a button and shares the
+    // file. Nothing is transmitted that they didn't hand over themselves.
+
+    /// A copy of the log in a temp file, named so several testers' logs don't
+    /// collide. Returns nil if there's nothing recorded yet.
+    static func export() -> URL? {
+        let body = contents()
+        guard !body.isEmpty else { return nil }
+
+        let name = "wasted-\(installID.prefix(6))-\(AppGroupKeys.dayString()).txt"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+        guard let data = body.data(using: .utf8), (try? data.write(to: url)) != nil else { return nil }
+        return url
+    }
+
+    /// Written once per launch. Without it, a log arriving from a stranger's phone
+    /// says nothing about which build, which iOS, or which threshold plan produced
+    /// it — and those are the first three questions worth asking.
+    static func logSession() {
+        let bundle = Bundle.main
+        let version = bundle.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = bundle.infoDictionary?["CFBundleVersion"] as? String ?? "?"
+        let plan = UserDefaults.wastedShared.string(forKey: "monitoring_active_plan") ?? "none"
+
+        log(.app, "───── launch · install=\(installID.prefix(6)) v\(version)(\(build)) "
+            + "· \(deviceModel) · iOS \(ProcessInfo.processInfo.operatingSystemVersionString) "
+            + "· plan=\(plan)")
+    }
+
+    /// Stable per-install identifier, so two testers' logs can be told apart. Not
+    /// a user ID: it's random, local, and never leaves the device unless the tester
+    /// exports the log themselves.
+    static let installID: String = {
+        let defaults = UserDefaults.wastedShared
+        if let existing = defaults.string(forKey: "install_id") { return existing }
+        let fresh = UUID().uuidString
+        defaults.set(fresh, forKey: "install_id")
+        return fresh
+    }()
+
+    private static var deviceModel: String {
+        var info = utsname()
+        uname(&info)
+        let model = withUnsafePointer(to: &info.machine) {
+            $0.withMemoryRebound(to: CChar.self, capacity: 1) { String(validatingCString: $0) ?? "?" }
+        }
+        return model
+    }
+
     // MARK: - Private
 
     private static func append(_ line: String) {

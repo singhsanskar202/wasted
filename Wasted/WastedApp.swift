@@ -27,6 +27,9 @@ struct WastedApp: App {
         BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.bgRotateID, using: nil) { task in
             Self.runRotation(task)
         }
+        // Stamps build, device, iOS and the active threshold plan into the log. A
+        // log arriving from someone else's phone is close to useless without them.
+        EventLog.logSession()
     }
 
     var body: some Scene {

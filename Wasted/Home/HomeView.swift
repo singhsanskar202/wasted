@@ -36,6 +36,7 @@ struct HomeView: View {
     // per refresh rather than on every one of this view's five-second renders.
     @State private var receipt = DailyReceipt(dateString: "", items: [], totalSeconds: 0, percentOfAwakeDay: 0)
     @State private var weekDays: [DailyUsage] = []
+    @State private var exportedLog: ExportedLog?
 
     private let store = UsageStore()
 
@@ -121,6 +122,9 @@ struct HomeView: View {
         }
         .sheet(isPresented: $showingPaywall) {
             PaywallView(store: lifetimeStore)
+        }
+        .sheet(item: $exportedLog) { log in
+            ShareLogSheet(url: log.url)
         }
     }
 
@@ -312,6 +316,25 @@ struct HomeView: View {
                     .foregroundStyle(Color.ink.opacity(0.3))
                     .padding(.top, 6)
             }
+
+            // BETA ONLY — remove before the App Store.
+            //
+            // A tester's log can't be pulled with devicectl (that only reaches a
+            // phone paired to the developer's own Mac), and it must never be
+            // uploaded: the app promises "your data, your device, nobody else sees
+            // it", and a silent diagnostics upload would make that a lie. So the
+            // tester exports it themselves, and chooses who gets it.
+            Button {
+                Haptics.light()
+                exportedLog = EventLog.export().map(ExportedLog.init(url:))
+            } label: {
+                Text("send diagnostics")
+                    .font(.system(size: 12, weight: .light))
+                    .foregroundStyle(Color.ink.opacity(0.28))
+                    .underline()
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 14)
         }
         .padding(.top, 6)
         .padding(.bottom, 48)

@@ -1,33 +1,5 @@
 import Foundation
 
-extension UserDefaults {
-    // The shared App Group suite, or a survivable substitute.
-    //
-    // This used to be `UserDefaults(suiteName:)!` inline in UsageStore's default
-    // argument. If the App Group entitlement isn't provisioned — a real state,
-    // and exactly the one a signing hiccup produces — that suite is nil and the
-    // force-unwrap CRASHES. And it crashes at `UsageStore()` init, which the main
-    // app, the DeviceActivityMonitor extension, the widget, and the background
-    // tasks all perform, so whichever process touches it first simply dies.
-    //
-    // A provisioning problem should degrade the app, not execute it. Falling back
-    // to .standard means the app runs and stays usable; the cost is that nothing
-    // is shared between processes, so the extension's usage never reaches the UI.
-    // That is a bad day. It is not a crash loop, and the log says exactly which
-    // one it is.
-    static let wastedShared: UserDefaults = {
-        if let shared = UserDefaults(suiteName: AppGroupKeys.appGroupID) {
-            return shared
-        }
-        EventLog.error(
-            .app,
-            "App Group '\(AppGroupKeys.appGroupID)' UNREACHABLE — falling back to local defaults. "
-            + "Usage will NOT be shared between the app, the extension and the widget. "
-            + "Check the App Group entitlement and provisioning profile."
-        )
-        return .standard
-    }()
-}
 
 final class UsageStore {
     let defaults: UserDefaults

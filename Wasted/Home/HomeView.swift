@@ -50,25 +50,27 @@ struct HomeView: View {
     // Each block answers ONE question, and no block answers a question another
     // block already answered:
     //
+    //   voice    → the mirror, speaking. it gets meaner as the number climbs.
     //   hero     → how much did today cost?
     //   when     → what part of the day was it?
     //   pattern  → is this a habit?
     //   settings → what is being tracked, and what does it cost?
     //
-    // Three things were cut getting here, all of them duplicates:
-    //   · The rotating quote. It was the THIRD serif-italic mirror line on one
-    //     screen (quote, equivalent, verdict) — same voice, same job, and the
-    //     only one of the three tied to the user's actual number is the
-    //     equivalent. It also pushed the hero, which is the entire product, below
-    //     the fold on smaller phones.
+    // Two things were cut getting here, both provable duplicates:
     //   · The verdict line ("9pm–11pm is over half of today"). A colour-coded
     //     strip that names its own worst window says this without a sentence.
     //   · The "TODAY" section label, which sat directly under a hero captioned
     //     "you wasted today".
+    //
+    // The quote STAYS. It looked like a third redundant mirror line, but it isn't
+    // information — it's the voice, and the voice is the product. It's no longer a
+    // fortune cookie either: QuoteBank picks its temper from today's real number,
+    // so it escalates while you scroll.
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
                 trackingHealth
+                voice
 
                 ZStack {
                     VStack(spacing: 0) {
@@ -195,17 +197,30 @@ struct HomeView: View {
         refresh()
     }
 
-    // HOW MUCH. The reason the app exists — the top of the screen, the largest
-    // type in the system, and no neighbours. The rotating quote used to sit above
-    // it and push it down; it was the third serif-italic line on the screen and
-    // the only one that knew nothing about the user.
+    // THE MIRROR, SPEAKING. Not a fortune cookie: its temper comes from today's
+    // real number, so it's patient at twenty minutes and it is not at four hours.
+    // The line changes underneath the user as the day gets worse, which is the
+    // only kind of provocation that can't be shrugged off — it knows.
+    private var voice: some View {
+        Text(QuoteBank.quote(forSeconds: totalSeconds))
+            .font(.system(size: 15, weight: .light, design: .serif))
+            .italic()
+            .foregroundStyle(Color.ink.opacity(0.42))
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, 8)
+            .padding(.top, 52)
+            .animation(.easeInOut(duration: 0.5), value: QuoteBank.Temper(seconds: totalSeconds))
+    }
+
+    // HOW MUCH. The reason the app exists — the largest type in the system.
     private var hero: some View {
         VStack(spacing: 0) {
             HeroNumber(seconds: totalSeconds)
                 .opacity(appeared ? 1 : 0)
                 .scaleEffect(appeared || reduceMotion ? 1 : 0.9)
                 .animation(reduceMotion ? nil : .spring(duration: 0.6, bounce: 0.25).delay(0.1), value: appeared)
-                .padding(.top, 52)
+                .padding(.top, 40)
 
             Text("you wasted today")
                 .font(.system(size: 12, weight: .light))

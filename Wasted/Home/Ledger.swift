@@ -22,13 +22,58 @@ extension Color {
     static let hairline  = ink.opacity(0.08)   // rules, empty cells
 }
 
+extension Color {
+    // The one addition to the palette, and it is earned. The design guide bans
+    // decorative colour, but a danger-zone heatmap needs to separate "you glanced
+    // at your phone" from "you lost half an hour here" from "this hour is gone" —
+    // and an ink-to-red ramp collapses the middle into a muddy nothing.
+    //
+    // Amber, not green-amber-red: there is NO green in this app and there never
+    // will be. Green would be a success state, and the mirror does not
+    // congratulate. The traffic light here runs from "quiet" to "bad" — it has no
+    // "good".
+    static let caution = Color(red: 0.98, green: 0.66, blue: 0.22)   // #FAA838
+}
+
 // A day past this is a quarter of your waking hours — the point where the
-// number stops being a statistic and starts being the day. Red appears here and
-// nowhere else on this screen. If a 1h day were red, every day would be red,
-// and red would just be the brand colour.
+// number stops being a statistic and starts being the day.
 enum Severity {
     static let alarmingDaySeconds = AppGroupKeys.awakeDayHours * 3600 / 4  // 4h
     static let alarmingHourSeconds = 3600
+
+    // What an hour of your day is worth. Calibrated so the colours mean
+    // something: ten minutes is a glance, half an hour is a hole, a full hour is
+    // an hour of your life you will not get back.
+    enum Hour {
+        case empty      // nothing
+        case quiet      // under 10m — a glance
+        case caution    // 10–29m — a hole in the hour
+        case danger     // 30m+ — the hour is going
+
+        init(seconds: Int) {
+            switch seconds {
+            case ..<1:    self = .empty
+            case ..<600:  self = .quiet
+            case ..<1800: self = .caution
+            default:      self = .danger
+            }
+        }
+
+        var isCallable: Bool { self == .caution || self == .danger }
+    }
+
+    static func color(hourSeconds seconds: Int) -> Color {
+        switch Hour(seconds: seconds) {
+        case .empty:   return .hairline
+        case .quiet:   return .ink.opacity(0.28)
+        case .caution: return .caution
+        case .danger:
+            // Ramps to full alarm as the hour is completely consumed, so a
+            // 58-minute hour is unmistakably worse than a 32-minute one.
+            let level = min(1.0, Double(seconds) / Double(alarmingHourSeconds))
+            return .alarm.opacity(0.65 + 0.35 * level)
+        }
+    }
 
     static func dayColor(_ seconds: Int) -> Color {
         seconds >= alarmingDaySeconds ? .alarm : .ink

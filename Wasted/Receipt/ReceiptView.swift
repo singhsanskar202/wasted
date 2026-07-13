@@ -82,22 +82,8 @@ struct ReceiptView: View {
     }
 }
 
-private struct DashedRule: View {
-    var body: some View {
-        Line()
-            .stroke(Color.ink.opacity(0.15), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
-            .frame(height: 1)
-    }
-
-    private struct Line: Shape {
-        func path(in rect: CGRect) -> Path {
-            var p = Path()
-            p.move(to: CGPoint(x: rect.minX, y: rect.midY))
-            p.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
-            return p
-        }
-    }
-}
+// DashedRule now lives in ReceiptCard.swift — the home screen and the sheet print
+// on the same paper.
 
 #Preview {
     ReceiptView(receipt: DailyReceipt(

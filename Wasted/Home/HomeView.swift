@@ -3,14 +3,17 @@ import FamilyControls
 import StoreKit
 import SwiftUI
 
-// THE LEDGER.
+// THE BILL.
 //
-// One hero on the centre axis, everything else on the left axis as a ledger —
-// which is the metaphor the product already owns with the receipt. No cards, no
-// filled panels, no coloured banners: structure comes from whitespace and a
-// single hairline. The old screen stacked eight centred blocks in six different
-// surface treatments, so nothing outranked anything and the eye never found the
-// number the whole app exists to show.
+// The receipt is the metaphor this product owns, and it spent this whole time
+// buried in a sheet while the home screen showed a lonely number that couldn't
+// say where it came from. A number can be argued with. An itemised bill — your
+// own app icons, your own names, a total that adds up — cannot.
+//
+// The screen is sequenced as an ARGUMENT, not a dashboard: the mirror speaks,
+// then hands you the bill, then shows you exactly which hours it was spent in
+// (the only actionable thing here), then shows you a week-long pattern you can't
+// see yet. That last one is what brings you back tomorrow.
 struct HomeView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
@@ -32,6 +35,10 @@ struct HomeView: View {
     // The last total actually pushed to ActivityKit, so a five-second poll that
     // finds nothing new doesn't hammer the update budget.
     @State private var lastPushedTotal = -1
+    // The bill, and the week's grid. Both are disk reads, so they're built once
+    // per refresh rather than on every one of this view's five-second renders.
+    @State private var receipt = DailyReceipt(dateString: "", items: [], totalSeconds: 0, percentOfAwakeDay: 0)
+    @State private var weekDays: [DailyUsage] = []
 
     private let store = UsageStore()
 
@@ -50,25 +57,17 @@ struct HomeView: View {
         return false
     }
 
-    // Each block answers ONE question, and no block answers a question another
-    // block already answered:
+    // FOUR BEATS, and each one earns the next.
     //
-    //   voice    → the mirror, speaking. it gets meaner as the number climbs.
-    //   hero     → how much did today cost?
-    //   when     → what part of the day was it?
-    //   pattern  → is this a habit?
-    //   settings → what is being tracked, and what does it cost?
+    //   1. THE VOICE      the mirror speaks, and it gets meaner as you scroll
+    //   2. THE BILL       an itemised receipt. a number can be argued with —
+    //                     a bill with your own app icons on it cannot
+    //   3. THE ZONES      WHERE the day leaks. the only actionable thing here
+    //   4. THE WEEK       locked and blurred. is this a bad evening, or a life?
     //
-    // Two things were cut getting here, both provable duplicates:
-    //   · The verdict line ("9pm–11pm is over half of today"). A colour-coded
-    //     strip that names its own worst window says this without a sentence.
-    //   · The "TODAY" section label, which sat directly under a hero captioned
-    //     "you wasted today".
-    //
-    // The quote STAYS. It looked like a third redundant mirror line, but it isn't
-    // information — it's the voice, and the voice is the product. It's no longer a
-    // fortune cookie either: QuoteBank picks its temper from today's real number,
-    // so it escalates while you scroll.
+    // Sequenced as an argument, not a dashboard: you're confronted, shown the
+    // receipt, shown where it happened, and then shown that there's a pattern you
+    // can't see yet. The last one is the hook that brings you back tomorrow.
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
@@ -77,11 +76,11 @@ struct HomeView: View {
 
                 ZStack {
                     VStack(spacing: 0) {
-                        hero
-                        Rule().padding(.top, 44)
-                        when
+                        bill
+                        Rule().padding(.top, 34)
+                        zones
                         Rule()
-                        pattern
+                        week
                         Rule()
                         footer
                     }
@@ -216,54 +215,39 @@ struct HomeView: View {
             .animation(.easeInOut(duration: 0.5), value: QuoteBank.Temper(seconds: totalSeconds))
     }
 
-    // HOW MUCH. The reason the app exists.
-    //
-    // The number sits BETWEEN two letterspaced caps lines — "you wasted" above,
-    // "on your phone today" below. That symmetry is most of why the original
-    // screen read as composed rather than assembled, and dropping it to a single
-    // caption underneath is what made this feel like a form.
-    private var hero: some View {
-        VStack(spacing: 0) {
-            HeroCaption(text: "you wasted")
-                .padding(.top, 34)
-
-            HeroNumber(seconds: totalSeconds)
-                .opacity(appeared ? 1 : 0)
-                .scaleEffect(appeared || reduceMotion ? 1 : 0.9)
-                .animation(reduceMotion ? nil : .spring(duration: 0.6, bounce: 0.25).delay(0.1), value: appeared)
-                .padding(.top, 14)
-
-            HeroCaption(text: "on your phone today")
-                .padding(.top, 14)
-
-            if let equivalent = EquivalentTaskMapper.equivalent(for: totalSeconds) {
-                MirrorLine(text: equivalent.line)
-                    .padding(.top, 28)
-                    .transition(.opacity)
-            }
-
-            QuietButton(title: "today's receipt") {
+    // THE BILL. A number can be argued with. An itemised receipt — with your own
+    // app icons on it, adding up to a total — cannot. This was buried in a sheet
+    // while the home screen showed a lonely number that couldn't say where it came
+    // from. Tapping it still opens the full receipt.
+    private var bill: some View {
+        ReceiptCard(
+            // Built in refresh(), not here: this body re-evaluates every five
+            // seconds, and building it inline meant a JSON decode off disk on
+            // every single render.
+            receipt: receipt,
+            trueTotalSeconds: totalSeconds,
+            isExpired: isExpired,
+            onTap: {
                 if isExpired { showingPaywall = true } else { showingReceipt = true }
             }
-            .padding(.top, 30)
-        }
-        .frame(maxWidth: .infinity)
+        )
+        .padding(.top, 36)
+        .opacity(appeared ? 1 : 0)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.5).delay(0.1), value: appeared)
     }
 
-    // WHEN. The strip is colour-coded by severity and names its own worst window,
-    // so it no longer needs a sentence underneath telling you what it means. The
-    // section label used to read "TODAY", directly below a hero captioned "you
-    // wasted today".
-    private var when: some View {
+    // WHERE IT LEAKS. The only actionable thing on the screen: the total tells you
+    // that you lost time; this tells you WHEN, so "9pm is where my evening goes"
+    // becomes a fact you can do something about.
+    private var zones: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SectionLabel(text: "when")
+            SectionLabel(text: "danger zones")
                 .padding(.top, 34)
 
-            // An empty day is stated, not drawn. A 24-slot chart with nothing in
-            // it renders as a void above a dashed rule, which reads as a broken
-            // component rather than as "you haven't picked up your phone".
+            // An empty day is stated, not drawn. A 24-slot chart with nothing in it
+            // reads as a broken component, not as "you haven't picked up your phone".
             if hourlyOrdered.contains(where: { $0 > 0 }) {
-                HourStrip(hourly: hourlyOrdered)
+                DangerZones(hourly: hourlyOrdered)
                     .padding(.top, 22)
             } else {
                 MirrorLine(text: "nothing yet today.", size: 15)
@@ -274,50 +258,27 @@ struct HomeView: View {
         .padding(.bottom, 34)
     }
 
-    // IS THIS A HABIT? Everything time-comparative lives here. "worst hours" moved
-    // in from the today section, where it never belonged — it's a seven-day
-    // statistic that was filed under a heading about the last few hours.
-    private var pattern: some View {
+    // IS THIS A BAD EVENING, OR A BAD LIFE? Locked and blurred until there are
+    // seven days — but the data under the blur is REAL, and it fills in a little
+    // more each day. The old screen faked this with random bars; curiosity built
+    // on a lie is worth nothing.
+    private var week: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SectionLabel(text: "the pattern")
-                .padding(.top, 34)
-
-            if let weekly = insightResult?.weekly {
-                WeekStrip(totals: weekly.totalSeconds, labels: weekly.dateLabels)
-                    .padding(.top, 22)
-                    .padding(.bottom, 10)
-            } else {
-                Text(daysUntilPattern == 1
-                     ? "seven days to see a pattern. one to go."
-                     : "seven days to see a pattern. \(daysUntilPattern) to go.")
-                    .font(.system(size: 15, weight: .regular, design: .serif))
-                    .italic()
-                    .foregroundStyle(Color.ink.opacity(0.35))
-                    .padding(.top, 16)
-                    .padding(.bottom, 6)
-            }
-
-            // A real comparison, not the old rule-engine verdict — which said
-            // whichever of eleven things happened to match and mostly had nothing
-            // to do with yesterday at all.
-            if let change = changeVsYesterday {
-                LedgerRow(label: "vs yesterday") {
-                    Text(change.text)
-                        .font(.system(size: 15, weight: .regular))
-                        // Red only when it got WORSE. There is no green here and
-                        // never will be: the mirror doesn't congratulate.
-                        .foregroundStyle(change.worse ? Color.alarm : Color.ink)
+            HStack(alignment: .firstTextBaseline) {
+                SectionLabel(text: "your week")
+                if let peak = historicalPeak {
+                    Text("worst: \(InsightEngine.hourLabel(peak.startHour))–\(InsightEngine.hourLabel(peak.endHour % 24))")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color.alarm)
                 }
             }
+            .padding(.top, 34)
 
-            if let peak = historicalPeak {
-                LedgerRow(
-                    label: "worst hours",
-                    value: "\(InsightEngine.hourLabel(peak.startHour))–\(InsightEngine.hourLabel(peak.endHour % 24))"
-                )
-            }
+            WeekHeatmap(days: weekDays, daysRequired: 7)
+                .frame(height: 130)
+                .padding(.top, 22)
         }
-        .padding(.bottom, 20)
+        .padding(.bottom, 26)
     }
 
     // WHAT IT'S TRACKING, AND WHAT IT COSTS.
@@ -343,23 +304,6 @@ struct HomeView: View {
         .padding(.bottom, 48)
     }
 
-    // MARK: - Yesterday
-
-    private var changeVsYesterday: (text: String, worse: Bool)? {
-        guard let yesterday = store.loadYesterday() else { return nil }
-        let before = yesterday.seconds.values.reduce(0, +)
-        guard before > 0, totalSeconds > 0 else { return nil }
-
-        let ratio = Double(totalSeconds) / Double(before)
-        let percent = Int(abs(ratio - 1) * 100)
-        // Below 5% it's noise, and calling noise a trend is how a mirror starts
-        // lying.
-        guard percent >= 5 else { return ("about the same", false) }
-
-        return ratio > 1
-            ? ("\(percent)% more", true)
-            : ("\(percent)% less", false)
-    }
 
     private var expiredOverlay: some View {
         VStack(spacing: 20) {
@@ -393,14 +337,21 @@ struct HomeView: View {
         (0..<24).map { hourlyData.hours[$0] ?? 0 }
     }
 
+
     private var trackedLabel: String {
         let count = selection.applications.count
         return "\(count) app\(count == 1 ? "" : "s")"
     }
 
     private func refresh() {
+        let usage = store.loadTodayUsage()
         hourlyData = store.loadTodayHourly()
         totalSeconds = store.totalSecondsAllApps()
+        receipt = DailyReceipt.build(usage: usage, displayNames: loadDisplayNames())
+        // Up to seven days, oldest first, TODAY LAST. History excludes today, so
+        // today is appended — otherwise the newest row of the heatmap would always
+        // be yesterday, the one day the user least needs to be told about.
+        weekDays = store.loadHistory().suffix(6) + [usage]
         trackingFailed = store.defaults.bool(forKey: AppGroupKeys.trackingFailedKey)
         trackingDegraded = store.defaults.bool(forKey: AppGroupKeys.trackingDegradedKey)
         loadInsight()

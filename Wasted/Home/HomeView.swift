@@ -3,17 +3,15 @@ import FamilyControls
 import StoreKit
 import SwiftUI
 
-// THE BILL.
+// ONE NUMBER. Everything else on this screen is subordinate to it, and the
+// hierarchy IS the design.
 //
-// The receipt is the metaphor this product owns, and it spent this whole time
-// buried in a sheet while the home screen showed a lonely number that couldn't
-// say where it came from. A number can be argued with. An itemised bill — your
-// own app icons, your own names, a total that adds up — cannot.
-//
-// The screen is sequenced as an ARGUMENT, not a dashboard: the mirror speaks,
-// then hands you the bill, then shows you exactly which hours it was spent in
-// (the only actionable thing here), then shows you a week-long pattern you can't
-// see yet. That last one is what brings you back tomorrow.
+// An itemised receipt sat where the number is for exactly one commit, and it
+// broke the screen: with a single tracked app the line item and the total are the
+// same number printed twice, and the eye had six competing text blocks — wordmark,
+// date, app row, "total", percentage, equivalent — with nothing telling it where
+// to land. Itemisation is what you open the receipt FOR. It is not what you
+// glance at.
 struct HomeView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
@@ -57,17 +55,18 @@ struct HomeView: View {
         return false
     }
 
-    // FOUR BEATS, and each one earns the next.
+    // ONE NUMBER, THEN TWO ANSWERS TO IT.
     //
-    //   1. THE VOICE      the mirror speaks, and it gets meaner as you scroll
-    //   2. THE BILL       an itemised receipt. a number can be argued with —
-    //                     a bill with your own app icons on it cannot
-    //   3. THE ZONES      WHERE the day leaks. the only actionable thing here
-    //   4. THE WEEK       locked and blurred. is this a bad evening, or a life?
+    //   1. THE VOICE   the mirror speaks, and it gets meaner as you scroll
+    //   2. THE NUMBER  the only thing on this screen that shouts
+    //   3. THE ZONES   WHERE the day leaked. the only actionable thing here
+    //   4. THE WEEK    locked and blurred. a bad evening, or a bad life?
     //
-    // Sequenced as an argument, not a dashboard: you're confronted, shown the
-    // receipt, shown where it happened, and then shown that there's a pattern you
-    // can't see yet. The last one is the hook that brings you back tomorrow.
+    // The hierarchy is the design. An itemised receipt sat in slot 2 for exactly
+    // one commit, and it destroyed the hierarchy: with a single tracked app the
+    // line item and the total are the same number printed twice, and the eye had
+    // six competing text blocks with nothing telling it where to land. Itemisation
+    // is what you open the receipt FOR — it is not what you glance at.
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
@@ -76,8 +75,8 @@ struct HomeView: View {
 
                 ZStack {
                     VStack(spacing: 0) {
-                        bill
-                        Rule().padding(.top, 34)
+                        hero
+                        Rule().padding(.top, 44)
                         zones
                         Rule()
                         week
@@ -116,12 +115,12 @@ struct HomeView: View {
             }
         }
         .sheet(isPresented: $showingReceipt, onDismiss: refresh) {
-            ReceiptView(receipt: DailyReceipt.build(
-                usage: store.loadTodayUsage(),
-                displayNames: loadDisplayNames()
-            ))
-            .presentationDetents([.medium])
-            .presentationDragIndicator(.visible)
+            // trueTotal, not the sum of the items: per-app thresholds are coarser
+            // than the combined series, so the sheet reconciles the gap rather
+            // than printing a bill that doesn't add up.
+            ReceiptView(receipt: receipt, trueTotalSeconds: totalSeconds)
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showingPaywall) {
             PaywallView(store: lifetimeStore)
@@ -215,25 +214,42 @@ struct HomeView: View {
             .animation(.easeInOut(duration: 0.5), value: QuoteBank.Temper(seconds: totalSeconds))
     }
 
-    // THE BILL. A number can be argued with. An itemised receipt — with your own
-    // app icons on it, adding up to a total — cannot. This was buried in a sheet
-    // while the home screen showed a lonely number that couldn't say where it came
-    // from. Tapping it still opens the full receipt.
-    private var bill: some View {
-        ReceiptCard(
-            // Built in refresh(), not here: this body re-evaluates every five
-            // seconds, and building it inline meant a JSON decode off disk on
-            // every single render.
-            receipt: receipt,
-            trueTotalSeconds: totalSeconds,
-            isExpired: isExpired,
-            onTap: {
+    // THE NUMBER. One thing dominates this screen, and this is it.
+    //
+    // An itemised receipt lived here for exactly one commit and it was wrong: with
+    // a single tracked app the line item and the total are THE SAME NUMBER printed
+    // twice, and the eye had six things competing for it — wordmark, date, app row,
+    // "total", the percentage, the equivalent — with no idea which one mattered.
+    // Itemisation is what you open the receipt FOR. It is not what you glance at.
+    //
+    // So: the mirror's line above, the number, the mirror's line below. Nothing
+    // else. That sandwich is the whole design.
+    private var hero: some View {
+        VStack(spacing: 0) {
+            HeroCaption(text: "you wasted")
+                .padding(.top, 40)
+
+            HeroNumber(seconds: totalSeconds)
+                .opacity(appeared ? 1 : 0)
+                .scaleEffect(appeared || reduceMotion ? 1 : 0.9)
+                .animation(reduceMotion ? nil : .spring(duration: 0.6, bounce: 0.25).delay(0.1), value: appeared)
+                .padding(.top, 16)
+
+            HeroCaption(text: "on your phone today")
+                .padding(.top, 16)
+
+            if let equivalent = EquivalentTaskMapper.equivalent(for: totalSeconds) {
+                MirrorLine(text: equivalent.line)
+                    .padding(.top, 30)
+                    .transition(.opacity)
+            }
+
+            QuietButton(title: "today's receipt") {
                 if isExpired { showingPaywall = true } else { showingReceipt = true }
             }
-        )
-        .padding(.top, 36)
-        .opacity(appeared ? 1 : 0)
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.5).delay(0.1), value: appeared)
+            .padding(.top, 32)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     // WHERE IT LEAKS. The only actionable thing on the screen: the total tells you

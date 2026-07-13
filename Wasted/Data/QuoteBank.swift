@@ -95,7 +95,7 @@ enum QuoteBank {
         "you're not going to fix this tomorrow either.",
         "a whole day to spend, and this is what you chose.",
         "you are watching your life happen to someone else.",
-        "is this how you want to spend your one life?",
+        "you are not going to be proud of today.",
     ]
 
     static func lines(for temper: Temper) -> [String] {

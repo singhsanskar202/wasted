@@ -80,6 +80,7 @@ struct HomeView: View {
                         week
                         Rule()
                         footer
+                        closing
                     }
                     .blur(radius: isExpired ? 14 : 0)
                     .redacted(reason: isExpired ? .placeholder : [])
@@ -337,9 +338,29 @@ struct HomeView: View {
             .padding(.top, 14)
         }
         .padding(.top, 6)
-        .padding(.bottom, 48)
+        .padding(.bottom, 26)
     }
 
+    // THE THESIS. The last thing you read before you put the phone down.
+    //
+    // It used to live in the quote bank's `brutal` tier, which meant you'd only
+    // ever see the line the whole product is built on if you'd already lost four
+    // hours — the one day it's least likely to change anything. It doesn't
+    // escalate and it doesn't rotate: the line at the TOP is the rage bait and it
+    // changes with the number, and this one is the constant it always comes back
+    // to.
+    private var closing: some View {
+        Text("is this how you want to spend your one life?")
+            .font(.system(size: 16, weight: .regular, design: .serif))
+            .italic()
+            .foregroundStyle(Color.ink.opacity(0.5))
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 12)
+            .padding(.top, 20)
+            .padding(.bottom, 64)
+    }
 
     private var expiredOverlay: some View {
         VStack(spacing: 20) {

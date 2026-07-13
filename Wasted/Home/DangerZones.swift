@@ -22,7 +22,7 @@ import SwiftUI
 struct DangerZones: View {
     let hourly: [Int]           // 24 values, seconds per hour
 
-    private var peak: Int { max(hourly.max() ?? 0, 1) }
+    private let chartHeight: CGFloat = 96
 
     // The hours worth naming, worst first. Two at most: a list of five "zones" is
     // a chart with extra steps, and the point is to give the user ONE thing to
@@ -37,18 +37,33 @@ struct DangerZones: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .bottom, spacing: 4) {
-                ForEach(0..<24, id: \.self) { hour in
-                    let seconds = hour < hourly.count ? hourly[hour] : 0
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Severity.color(hourSeconds: seconds))
-                        .frame(height: height(for: seconds))
-                        .frame(maxWidth: .infinity)
+            ZStack(alignment: .top) {
+                // The ceiling: a full hour, entirely gone. Without it the chart has
+                // no unit and the reader has to guess what "tall" means.
+                VStack(spacing: 0) {
+                    HStack(spacing: 6) {
+                        Rectangle()
+                            .fill(Color.ink.opacity(0.10))
+                            .frame(height: 1)
+                        Text("1h")
+                            .font(.system(size: 9, weight: .light))
+                            .foregroundStyle(Color.ink.opacity(0.3))
+                    }
+                    Spacer(minLength: 0)
                 }
+
+                HStack(alignment: .bottom, spacing: 4) {
+                    ForEach(0..<24, id: \.self) { hour in
+                        let seconds = hour < hourly.count ? hourly[hour] : 0
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Severity.color(hourSeconds: seconds))
+                            .frame(height: height(for: seconds))
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+                .frame(maxHeight: .infinity, alignment: .bottom)
             }
-            // Tall enough that the shape of the day is legible. The point of this
-            // section is the shape; at 56pt it was a rumour.
-            .frame(height: 96, alignment: .bottom)
+            .frame(height: chartHeight)
 
             HStack(spacing: 0) {
                 ForEach(["12a", "6a", "12p", "6p"], id: \.self) { label in
@@ -102,10 +117,20 @@ struct DangerZones: View {
         }
     }
 
-    // The tallest bar reaches the TOP of the band. Scaling to less than the frame
-    // leaves dead air above the peak, which reads as a chart that failed to draw.
+    // ABSOLUTE, NOT RELATIVE. A full bar means a full hour of your life is gone.
+    //
+    // Bars used to scale to the DAY'S PEAK, which quietly lied: on a quiet day a
+    // 16-minute hour drew as a full-height bar — the tallest thing on the screen —
+    // and looked catastrophic. The colour said "caution" while the height screamed
+    // "worst possible", and two encodings disagreeing is exactly how a chart
+    // becomes something you have to decode instead of something you understand.
+    //
+    // Now the scale is fixed at one hour. A bar half-way up means you lost half of
+    // that hour. It's the same scale every day, so today can be compared with
+    // yesterday, and there is nothing to interpret.
     private func height(for seconds: Int) -> CGFloat {
         guard seconds > 0 else { return 3 }
-        return 8 + 86 * (Double(seconds) / Double(peak))
+        let fraction = min(1.0, Double(seconds) / 3600)
+        return max(4, chartHeight * fraction)
     }
 }

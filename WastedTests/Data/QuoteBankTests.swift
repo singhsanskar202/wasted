@@ -24,7 +24,9 @@ final class QuoteBankTests: XCTestCase {
     // clean morning and a six-hour binge — a fortune cookie that knew nothing
     // about the person reading it.
     func test_temperEscalatesWithTheNumber() {
-        XCTAssertEqual(QuoteBank.Temper(seconds: 0), .waiting)
+        XCTAssertEqual(QuoteBank.Temper(seconds: 0), .idle)
+        XCTAssertEqual(QuoteBank.Temper(seconds: 59), .idle)
+        XCTAssertEqual(QuoteBank.Temper(seconds: 60), .waiting)
         XCTAssertEqual(QuoteBank.Temper(seconds: 29 * 60), .waiting)
         XCTAssertEqual(QuoteBank.Temper(seconds: 30 * 60), .pointed)
         XCTAssertEqual(QuoteBank.Temper(seconds: 119 * 60), .pointed)
@@ -32,6 +34,39 @@ final class QuoteBankTests: XCTestCase {
         XCTAssertEqual(QuoteBank.Temper(seconds: 239 * 60), .cruel)
         XCTAssertEqual(QuoteBank.Temper(seconds: 240 * 60), .brutal)
         XCTAssertEqual(QuoteBank.Temper(seconds: 12 * 3600), .brutal)
+    }
+
+    // THE BUG: "nothing yet. give it an hour." fired anywhere under 30 minutes, so
+    // the mirror said NOTHING YET directly above a number reading 20m. The app
+    // contradicted itself on its own home screen, in the one voice that is
+    // supposed to be unarguable.
+    //
+    // The rule: every line in a tier must be TRUE at every value inside that tier.
+    // Only the zero tier may claim nothing has happened.
+    func test_onlyTheZeroTierMayClaimNothingHappened() {
+        let claimsNothing = ["nothing yet", "hasn't started", "the quiet part"]
+
+        for temper in QuoteBank.Temper.allCases where temper != .idle {
+            for line in QuoteBank.lines(for: temper) {
+                for claim in claimsNothing {
+                    XCTAssertFalse(
+                        line.lowercased().contains(claim),
+                        "\(temper) can fire with real usage on the screen, and this line denies it: \(line)"
+                    )
+                }
+            }
+        }
+    }
+
+    // The contradiction, caught end to end: at any non-zero total, the line the
+    // user actually sees must never say nothing has happened.
+    func test_theLineNeverDeniesTheNumberOnScreen() {
+        for minutes in [1, 5, 19, 20, 29, 45, 90, 200, 400] {
+            let line = QuoteBank.quote(forSeconds: minutes * 60).lowercased()
+            XCTAssertFalse(line.contains("nothing yet"), "said 'nothing yet' at \(minutes)m: \(line)")
+        }
+        // And at true zero, it's allowed to.
+        XCTAssertTrue(QuoteBank.idle.contains { $0.contains("nothing yet") })
     }
 
     // HomeView refreshes every five seconds. A quote that reshuffled on every tick

@@ -25,13 +25,22 @@ import Foundation
 enum QuoteBank {
 
     enum Temper: Equatable, CaseIterable {
-        case waiting    // under 30m — nothing has happened yet, and it knows
+        case idle       // ZERO. nothing has happened. the only tier allowed to say so
+        case waiting    // 1–29m — it has started, and the mirror is watching
         case pointed    // 30m–2h — this stopped being a check
         case cruel      // 2h–4h — the day is being spent
         case brutal     // 4h+ — this is not an accident anymore
 
+        // The boundary at zero is the whole point. "nothing yet. give it an hour."
+        // used to fire anywhere under 30 minutes, so the mirror said NOTHING YET
+        // directly above a number reading 20m — the app contradicting itself, on
+        // its own home screen, in the one voice that's supposed to be unarguable.
+        //
+        // Every line in a tier must be TRUE at every value inside it. That's the
+        // rule, and a test enforces it.
         init(seconds: Int) {
             switch seconds {
+            case ..<60:    self = .idle
             case ..<1800:  self = .waiting
             case ..<7200:  self = .pointed
             case ..<14400: self = .cruel
@@ -40,15 +49,23 @@ enum QuoteBank {
         }
     }
 
-    // Patient, and slightly ominous. The mirror is not impressed yet — it's just
-    // watching.
+    // Nothing has happened yet — and this is the ONLY tier allowed to say so.
+    static let idle: [String] = [
+        "nothing yet. give it an hour.",
+        "the day hasn't started costing you.",
+        "you'll be back.",
+        "this is the quiet part.",
+    ]
+
+    // It has started. Small, but started. The mirror is not impressed — it's just
+    // watching, and it knows how this goes.
     static let waiting: [String] = [
         "the day is young. so is the number.",
         "this is how it starts.",
-        "you'll be back.",
+        "it never stays this small.",
         "you opened this to feel better about it.",
-        "nothing yet. give it an hour.",
         "you already know how today ends.",
+        "you'll be back before lunch.",
     ]
 
     // It has stopped being a quick check, and the mirror has noticed.
@@ -83,6 +100,7 @@ enum QuoteBank {
 
     static func lines(for temper: Temper) -> [String] {
         switch temper {
+        case .idle:    return idle
         case .waiting: return waiting
         case .pointed: return pointed
         case .cruel:   return cruel

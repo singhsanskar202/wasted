@@ -24,7 +24,6 @@ struct HomeView: View {
     @State private var hourlyData = UsageStore().loadTodayHourly()
     @State private var totalSeconds = UsageStore().totalSecondsAllApps()
     @State private var appeared = false
-    @State private var insightResult: InsightResult? = nil
     @State private var historicalPeak: HistoricalPeak? = nil
     @State private var trialState: TrialState = .unlocked
     @State private var realityCheck: RealityCheck? = nil
@@ -47,8 +46,6 @@ struct HomeView: View {
     private let refreshTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
 
     private let gutter: CGFloat = 28
-
-    private var daysUntilPattern: Int { max(0, 7 - store.loadHistory().count) }
 
     private var isExpired: Bool {
         if case .expired = trialState { return true }
@@ -359,22 +356,44 @@ struct HomeView: View {
         return "\(count) app\(count == 1 ? "" : "s")"
     }
 
+    // THIS RUNS EVERY FIVE SECONDS, INCLUDING WHILE THE USER IS SCROLLING.
+    //
+    // It used to do about EIGHT JSON decodes off disk on the main thread —
+    // loadTodayUsage three times, loadHistory four — and then reassign every
+    // @State unconditionally, which forces SwiftUI to rebuild the entire scroll
+    // content whether or not anything changed. That is the jitter.
+    //
+    // Now: ONE read of today, ONE of history, everything derived from those two
+    // snapshots, and state assigned ONLY when the value actually moved. The total
+    // steps at most once a minute, so eleven of every twelve ticks are now
+    // completely silent — no state change, no re-render, no hitch.
     private func refresh() {
         let usage = store.loadTodayUsage()
-        hourlyData = store.loadTodayHourly()
-        totalSeconds = store.totalSecondsAllApps()
-        receipt = DailyReceipt.build(usage: usage, displayNames: loadDisplayNames())
-        // Up to seven days, oldest first, TODAY LAST. History excludes today, so
-        // today is appended — otherwise the newest row of the heatmap would always
-        // be yesterday, the one day the user least needs to be told about.
-        weekDays = store.loadHistory().suffix(6) + [usage]
-        trackingFailed = store.defaults.bool(forKey: AppGroupKeys.trackingFailedKey)
-        trackingDegraded = store.defaults.bool(forKey: AppGroupKeys.trackingDegradedKey)
-        loadInsight()
+        let history = store.loadHistory()
+
+        assign(store.totalSeconds(in: usage), to: &totalSeconds)
+        assign(store.hourly(in: usage), to: &hourlyData)
+        assign(DailyReceipt.build(usage: usage, displayNames: loadDisplayNames()), to: &receipt)
+        // Oldest first, TODAY LAST. History excludes today, so today is appended —
+        // otherwise the newest row of the heatmap would always be yesterday, the
+        // one day the user least needs to be told about.
+        assign(Array(history.suffix(6)) + [usage], to: &weekDays)
+        assign(InsightEngine.historicalPeak(history: history), to: &historicalPeak)
+        assign(store.defaults.bool(forKey: AppGroupKeys.trackingFailedKey), to: &trackingFailed)
+        assign(store.defaults.bool(forKey: AppGroupKeys.trackingDegradedKey), to: &trackingDegraded)
+
         updateTrialState()
-        updateRealityCheck()
+        updateRealityCheck(history: history)
         maybeAutoShowReceipt()
         syncIsland()
+    }
+
+    /// Writes only on a real change. Assigning an identical value to @State still
+    /// invalidates the view in SwiftUI, so this is the difference between a silent
+    /// tick and a full rebuild of the scroll content.
+    private func assign<T: Equatable>(_ value: T, to state: inout T) {
+        guard state != value else { return }
+        state = value
     }
 
     // THE ISLAND WAS FROZEN AT WHATEVER THE TOTAL HAPPENED TO BE IN THE SINGLE
@@ -405,17 +424,17 @@ struct HomeView: View {
 
     private func updateTrialState() {
         #if targetEnvironment(simulator)
-        trialState = .unlocked
+        assign(.unlocked, to: &trialState)
         #else
-        trialState = TrialClock.state(firstLaunch: store.firstLaunchDate(), unlocked: lifetimeStore.isUnlocked)
+        assign(TrialClock.state(firstLaunch: store.firstLaunchDate(), unlocked: lifetimeStore.isUnlocked), to: &trialState)
         #endif
     }
 
-    private func updateRealityCheck() {
+    private func updateRealityCheck(history: [DailyUsage]) {
         guard
             !store.isRealityCheckShown(),
             let guessSeconds = store.guessSeconds(),
-            let firstDay = store.loadHistory().first
+            let firstDay = history.first
         else { return }
 
         let firstDayTotal = firstDay.seconds.values.reduce(0, +)
@@ -438,16 +457,6 @@ struct HomeView: View {
         showingReceipt = true
     }
 
-    private func loadInsight() {
-        let history = store.loadHistory()
-        insightResult = InsightEngine.analyze(
-            today: store.loadTodayUsage(),
-            yesterday: store.loadYesterday(),
-            history: history,
-            displayNames: loadDisplayNames()
-        )
-        historicalPeak = InsightEngine.historicalPeak(history: history)
-    }
 
     // MARK: - Trial
 

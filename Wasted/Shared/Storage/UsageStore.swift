@@ -66,7 +66,15 @@ final class UsageStore {
     // the per-app sum is coarse but independent. max() means neither lag can
     // make the number go backwards.
     func totalSecondsAllApps() -> Int {
-        max(loadTodayUsage().seconds.values.reduce(0, +), combinedSecondsToday())
+        totalSeconds(in: loadTodayUsage())
+    }
+
+    /// Same total, from an ALREADY-LOADED day. HomeView refreshes every five
+    /// seconds, and every one of these helpers used to re-decode the day's JSON
+    /// off disk — on the main thread, mid-scroll. Taking the snapshot as a
+    /// parameter is what lets a refresh do one read instead of eight.
+    func totalSeconds(in usage: DailyUsage) -> Int {
+        max(usage.seconds.values.reduce(0, +), combinedSecondsToday())
     }
 
     // MARK: - Combined total (all tracked apps)
@@ -107,7 +115,11 @@ final class UsageStore {
     // MARK: - Hourly
 
     func loadTodayHourly() -> HourlyUsage {
-        let usage = loadTodayUsage()
+        hourly(in: loadTodayUsage())
+    }
+
+    /// Same, from an already-loaded day — see `totalSeconds(in:)`.
+    func hourly(in usage: DailyUsage) -> HourlyUsage {
         var hourly = HourlyUsage(date: usage.date)
         for (hour, seconds) in usage.hourly.enumerated() where seconds > 0 {
             hourly.add(seconds: seconds, toHour: hour)

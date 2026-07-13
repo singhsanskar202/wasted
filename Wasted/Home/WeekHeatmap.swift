@@ -24,6 +24,12 @@ struct WeekHeatmap: View {
         ZStack {
             grid
                 .blur(radius: isLocked ? 7 : 0)
+                // 168 rounded rectangles under a blur. SwiftUI re-rasterises that
+                // on every render pass — including every frame of a scroll — and
+                // a Gaussian blur is not cheap. drawingGroup() flattens the whole
+                // grid into one Metal-backed texture, so scrolling past it costs a
+                // single composited layer instead of 168 shapes and a live blur.
+                .drawingGroup()
                 .opacity(isLocked ? 0.55 : 1)
                 .allowsHitTesting(!isLocked)
                 .accessibilityHidden(isLocked)

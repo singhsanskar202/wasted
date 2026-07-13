@@ -1,19 +1,31 @@
 import SwiftUI
 
-// Today, hour by hour. Replaces the "CLEAN ZONES" card, which spent a four-item
-// colour legend (Clean / Low / Moderate / Danger) on a strip that usually has
-// one coloured cell in it — more legend than data, and four shades of orange
-// that the palette never had.
+// WHEN the day went. The one job of this component.
 //
-// Here there is nothing to decode: taller and brighter means more time. The one
-// colour in the system, alarm red, is spent only on an hour that crosses an hour
-// of usage — the same rule the rest of the app uses. Everything else rides an
-// ink opacity ramp, so red keeps meaning "this is bad" instead of meaning "this
-// is a chart".
+// It used to encode usage only as height, with red reserved for hours past the
+// 1h mark — so a 55-minute hour and a 6-minute hour were the same colour and you
+// had to compare bar heights to find the hour that actually hurt. Now severity is
+// a colour ramp from ink to alarm, so the worst part of your day is the part your
+// eye lands on first, without reading anything.
+//
+// Two colours, not three. The palette has ink and alarm; adding an amber would
+// make this a decorative chart instead of a diagnostic one, and the design guide
+// bans exactly that. The ramp between them carries all the information a third
+// hue would.
+//
+// And no legend. The old "CLEAN / LOW / MODERATE / DANGER" key spent four rows
+// explaining a strip that usually had one coloured cell in it. The worst window
+// names itself underneath instead — which is the only thing the legend was ever
+// helping you find.
 struct HourStrip: View {
     let hourly: [Int]           // 24 values, seconds per hour
 
     private var peak: Int { max(hourly.max() ?? 0, 1) }
+
+    // An hour in which you spent a full hour is as bad as an hour gets.
+    private func severity(_ seconds: Int) -> Double {
+        min(1.0, Double(seconds) / Double(Severity.alarmingHourSeconds))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -38,27 +50,56 @@ struct HourStrip: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
+
+            if let worst = worstWindow {
+                Text(worst)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color.alarm)
+                    .padding(.top, 4)
+            }
         }
+    }
+
+    // The strip's own caption, so the chart explains itself instead of needing a
+    // sentence somewhere else on the screen to interpret it.
+    private var worstWindow: String? {
+        guard let worstHour = hourly.indices.max(by: { hourly[$0] < hourly[$1] }),
+              hourly[worstHour] > 0
+        else { return nil }
+        let minutes = hourly[worstHour] / 60
+        // Below ten minutes there's no "worst" worth naming — it would just be
+        // pointing at noise and calling it a problem.
+        guard minutes >= 10 else { return nil }
+        return "worst: \(InsightEngine.hourLabel(worstHour))–\(InsightEngine.hourLabel((worstHour + 1) % 24)) · \(minutes)m"
     }
 
     private func color(for seconds: Int) -> Color {
         guard seconds > 0 else { return .hairline }
-        if seconds >= Severity.alarmingHourSeconds { return .alarm }
-        let fraction = Double(seconds) / Double(peak)
-        return Color.ink.opacity(0.20 + 0.45 * fraction)
+        let level = severity(seconds)
+
+        // The hue is curved, not linear. Mixing a warm off-white ink with red at
+        // a linear 30% lands in a dusty brown — every mildly-used hour looked
+        // muddy and *slightly* alarming, which is the opposite of a diagnostic.
+        // Squaring holds the low end at ink, so a ten-minute hour is quiet and
+        // neutral, and the colour only turns as the hour genuinely goes bad.
+        let heat = level * level
+
+        // Brightness climbs linearly, so a quiet hour recedes into the canvas and
+        // a ruinous one is the brightest object on the screen.
+        return Color.ink
+            .mix(with: Color.alarm, by: heat)
+            .opacity(0.35 + 0.65 * level)
     }
 
     private func height(for seconds: Int) -> CGFloat {
         guard seconds > 0 else { return 3 }
-        let fraction = Double(seconds) / Double(peak)
-        return 6 + 50 * fraction
+        return 6 + 50 * (Double(seconds) / Double(peak))
     }
 }
 
 // Seven days, once there are seven days. Until then there is NO chart — the old
 // screen drew `CGFloat.random(in: 12...48)` bars here, which is fabricated data
 // on the home screen of an app whose entire promise is that the number is true.
-// An empty state that admits it's empty is worth more than a decorative lie.
 struct WeekStrip: View {
     let totals: [Int]           // one total per day, oldest first
     let labels: [String]

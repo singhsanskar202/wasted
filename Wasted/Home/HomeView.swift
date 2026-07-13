@@ -47,17 +47,34 @@ struct HomeView: View {
         return false
     }
 
+    // Each block answers ONE question, and no block answers a question another
+    // block already answered:
+    //
+    //   hero     → how much did today cost?
+    //   when     → what part of the day was it?
+    //   pattern  → is this a habit?
+    //   settings → what is being tracked, and what does it cost?
+    //
+    // Three things were cut getting here, all of them duplicates:
+    //   · The rotating quote. It was the THIRD serif-italic mirror line on one
+    //     screen (quote, equivalent, verdict) — same voice, same job, and the
+    //     only one of the three tied to the user's actual number is the
+    //     equivalent. It also pushed the hero, which is the entire product, below
+    //     the fold on smaller phones.
+    //   · The verdict line ("9pm–11pm is over half of today"). A colour-coded
+    //     strip that names its own worst window says this without a sentence.
+    //   · The "TODAY" section label, which sat directly under a hero captioned
+    //     "you wasted today".
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
                 trackingHealth
-                quote
 
                 ZStack {
                     VStack(spacing: 0) {
                         hero
-                        Rule().padding(.top, 52)
-                        today
+                        Rule().padding(.top, 44)
+                        when
                         Rule()
                         pattern
                         Rule()
@@ -178,26 +195,17 @@ struct HomeView: View {
         refresh()
     }
 
-    private var quote: some View {
-        Text(QuoteBank.todaysQuote)
-            .font(.system(size: 15, weight: .light, design: .serif))
-            .italic()
-            .foregroundStyle(Color.ink.opacity(0.38))
-            .multilineTextAlignment(.center)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, 12)
-            .padding(.top, 56)
-    }
-
-    // The reason the app exists. It gets the top of the screen, the largest type
-    // in the system, and no neighbours.
+    // HOW MUCH. The reason the app exists — the top of the screen, the largest
+    // type in the system, and no neighbours. The rotating quote used to sit above
+    // it and push it down; it was the third serif-italic line on the screen and
+    // the only one that knew nothing about the user.
     private var hero: some View {
         VStack(spacing: 0) {
             HeroNumber(seconds: totalSeconds)
                 .opacity(appeared ? 1 : 0)
                 .scaleEffect(appeared || reduceMotion ? 1 : 0.9)
                 .animation(reduceMotion ? nil : .spring(duration: 0.6, bounce: 0.25).delay(0.1), value: appeared)
-                .padding(.top, 44)
+                .padding(.top, 52)
 
             Text("you wasted today")
                 .font(.system(size: 12, weight: .light))
@@ -206,9 +214,6 @@ struct HomeView: View {
                 .padding(.top, 10)
 
             if let equivalent = EquivalentTaskMapper.equivalent(for: totalSeconds) {
-                // The mapper returns a whole sentence now — past 4h it stops
-                // comparing and states the annual cost instead, which doesn't
-                // fit a "that's …" fragment.
                 MirrorLine(text: equivalent.line)
                     .padding(.top, 22)
                     .transition(.opacity)
@@ -222,9 +227,13 @@ struct HomeView: View {
         .frame(maxWidth: .infinity)
     }
 
-    private var today: some View {
+    // WHEN. The strip is colour-coded by severity and names its own worst window,
+    // so it no longer needs a sentence underneath telling you what it means. The
+    // section label used to read "TODAY", directly below a hero captioned "you
+    // wasted today".
+    private var when: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SectionLabel(text: "today")
+            SectionLabel(text: "when")
                 .padding(.top, 28)
 
             // An empty day is stated, not drawn. A 24-slot chart with nothing in
@@ -233,26 +242,49 @@ struct HomeView: View {
             if hourlyOrdered.contains(where: { $0 > 0 }) {
                 HourStrip(hourly: hourlyOrdered)
                     .padding(.top, 18)
-                    .padding(.bottom, 24)
             } else {
                 MirrorLine(text: "nothing yet today.", size: 15)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, 14)
-                    .padding(.bottom, 18)
+            }
+        }
+        .padding(.bottom, 26)
+    }
+
+    // IS THIS A HABIT? Everything time-comparative lives here. "worst hours" moved
+    // in from the today section, where it never belonged — it's a seven-day
+    // statistic that was filed under a heading about the last few hours.
+    private var pattern: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionLabel(text: "the pattern")
+                .padding(.top, 28)
+
+            if let weekly = insightResult?.weekly {
+                WeekStrip(totals: weekly.totalSeconds, labels: weekly.dateLabels)
+                    .padding(.top, 20)
+                    .padding(.bottom, 8)
+            } else {
+                Text(daysUntilPattern == 1
+                     ? "seven days to see a pattern. one to go."
+                     : "seven days to see a pattern. \(daysUntilPattern) to go.")
+                    .font(.system(size: 15, weight: .regular, design: .serif))
+                    .italic()
+                    .foregroundStyle(Color.ink.opacity(0.35))
+                    .padding(.top, 14)
+                    .padding(.bottom, 4)
             }
 
-            // The mirror's read on the day, in its own voice — NOT a keyed row.
-            // It was briefly labelled "vs yesterday", which lied: the verdict is
-            // whichever rule matched, and most of them have nothing to do with
-            // yesterday. It was also, before that, a filled GREEN banner reading
-            // "91% less than yesterday. Actual progress." — a success state, in
-            // an app whose design guide bans them and whose whole thesis is that
-            // it never congratulates you.
-            if let insight = insightResult, !insight.verdictLine.isEmpty {
-                MirrorLine(text: insight.verdictLine, size: 15)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .multilineTextAlignment(.leading)
-                    .padding(.bottom, 6)
+            // A real comparison, not the old rule-engine verdict — which said
+            // whichever of eleven things happened to match and mostly had nothing
+            // to do with yesterday at all.
+            if let change = changeVsYesterday {
+                LedgerRow(label: "vs yesterday") {
+                    Text(change.text)
+                        .font(.system(size: 15, weight: .regular))
+                        // Red only when it got WORSE. There is no green here and
+                        // never will be: the mirror doesn't congratulate.
+                        .foregroundStyle(change.worse ? Color.alarm : Color.ink)
+                }
             }
 
             if let peak = historicalPeak {
@@ -261,7 +293,13 @@ struct HomeView: View {
                     value: "\(InsightEngine.hourLabel(peak.startHour))–\(InsightEngine.hourLabel(peak.endHour % 24))"
                 )
             }
+        }
+        .padding(.bottom, 20)
+    }
 
+    // WHAT IT'S TRACKING, AND WHAT IT COSTS.
+    private var footer: some View {
+        VStack(alignment: .leading, spacing: 0) {
             LedgerRow(label: "tracking", value: trackedLabel) {
                 showingPicker = true
             }
@@ -270,51 +308,34 @@ struct HomeView: View {
                 saveSelection(newValue)
                 ActivityScheduler.shared.startMonitoring(selection: newValue)
             }
-            .padding(.bottom, 12)
-        }
-    }
 
-    // Seven days of real history, or an honest sentence. Never a decorative
-    // chart of random numbers — which is literally what stood here before
-    // (`CGFloat.random(in: 12...48)`), on the home screen of an app that sells
-    // the truth.
-    private var pattern: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionLabel(text: "this week")
-                .padding(.top, 28)
-
-            if let weekly = insightResult?.weekly {
-                WeekStrip(totals: weekly.totalSeconds, labels: weekly.dateLabels)
-                    .padding(.top, 20)
-
-                MirrorLine(text: weekly.verdictLine, size: 14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .multilineTextAlignment(.leading)
-                    .padding(.top, 18)
-            } else {
-                Text(daysUntilPattern == 1
-                     ? "your pattern needs seven days. one to go."
-                     : "your pattern needs seven days. \(daysUntilPattern) to go.")
-                    .font(.system(size: 15, weight: .regular, design: .serif))
-                    .italic()
-                    .foregroundStyle(Color.ink.opacity(0.35))
-                    .padding(.top, 16)
-            }
-        }
-        .padding(.bottom, 26)
-    }
-
-    private var footer: some View {
-        Group {
             if let trialDayLine {
                 Text(trialDayLine)
                     .font(.system(size: 12, weight: .light))
                     .foregroundStyle(Color.ink.opacity(0.3))
+                    .padding(.top, 6)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.top, 22)
+        .padding(.top, 6)
         .padding(.bottom, 48)
+    }
+
+    // MARK: - Yesterday
+
+    private var changeVsYesterday: (text: String, worse: Bool)? {
+        guard let yesterday = store.loadYesterday() else { return nil }
+        let before = yesterday.seconds.values.reduce(0, +)
+        guard before > 0, totalSeconds > 0 else { return nil }
+
+        let ratio = Double(totalSeconds) / Double(before)
+        let percent = Int(abs(ratio - 1) * 100)
+        // Below 5% it's noise, and calling noise a trend is how a mirror starts
+        // lying.
+        guard percent >= 5 else { return ("about the same", false) }
+
+        return ratio > 1
+            ? ("\(percent)% more", true)
+            : ("\(percent)% less", false)
     }
 
     private var expiredOverlay: some View {

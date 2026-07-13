@@ -131,6 +131,7 @@
 		6953DA162FC5E0B500D38AF0 /* Exceptions for "Wasted" folder in "LiveActivityExtExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Shared/Diagnostics/EventLog.swift,
 				Shared/EquivalentTaskMapper.swift,
 				Shared/LiveActivity/TimeTrackerAttributes.swift,
 				Shared/Models/AppGroupKeys.swift,

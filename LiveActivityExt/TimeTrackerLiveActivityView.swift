@@ -88,7 +88,23 @@ private func confirmedSeconds(_ context: ActivityViewContext<TimeTrackerAttribut
         defaults.string(forKey: AppGroupKeys.liveTotalDateKey) == AppGroupKeys.dayString()
     else { return pushed }
 
-    return max(pushed, defaults.integer(forKey: AppGroupKeys.liveTotalKey))
+    let pulled = defaults.integer(forKey: AppGroupKeys.liveTotalKey)
+
+    // The whole question, answered by the device instead of by me guessing at
+    // Apple's docs: does the system ever redraw this card on its own? If it does,
+    // the pull rescues the number and this line records it. If this line never
+    // appears in the log while the total is climbing, the island is structurally
+    // incapable of being live and the widget has to be the hero surface.
+    //
+    // Logged ONLY when the pull actually beats the pushed value — a card that's
+    // already correct is not news, and rendering happens often enough that
+    // logging every draw would drown the file.
+    if pulled > pushed {
+        EventLog.log(.island, "RENDER pulled=\(pulled)s (pushed was \(pushed)s) — stale by \((pulled - pushed) / 60)m")
+    }
+
+    // Never min: the number may only ever go up.
+    return max(pushed, pulled)
 }
 
 // MARK: - Shared card

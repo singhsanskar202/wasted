@@ -65,6 +65,23 @@ enum LiveActivityPolicy {
     }
 }
 
+// Every ActivityKit mutation in the main app funnels through here.
+//
+// Two callers now push to the island — the scene coming active, and HomeView's
+// five-second poll while it's on screen — and at launch they fire at almost the
+// same moment. Two concurrent `startOrUpdate`s can both look at an empty
+// `Activity.activities`, both decide `.replace`, and both call `request()`,
+// leaving TWO live activities racing on the Lock Screen. An actor serialises
+// them, so the second one sees what the first one created.
+actor LiveActivityCoordinator {
+    static let shared = LiveActivityCoordinator()
+    private let manager = LiveActivityManager()
+
+    func sync(totalSeconds: Int) async {
+        await manager.startOrUpdate(totalSeconds: totalSeconds)
+    }
+}
+
 final class LiveActivityManager {
 
     func startOrUpdate(totalSeconds: Int) async {

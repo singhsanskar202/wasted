@@ -165,9 +165,15 @@ struct WastedApp: App {
         guard trialState != .expired else { return }
 
         // This is the ONLY process that can write to the island, so every run of
-        // it — foreground or BG refresh — is the island's one chance to catch up
-        // to the truth the extension has been recording all along.
-        await LiveActivityManager().startOrUpdate(totalSeconds: store.totalSecondsAllApps())
+        // it — foreground or BG refresh — is the island's chance to catch up to
+        // the truth the extension has been recording all along.
+        //
+        // It is NOT the only push any more, though: HomeView keeps the island in
+        // step while it's on screen, because DeviceActivity delivers thresholds
+        // late and in bursts, so the total keeps climbing for seconds AFTER the
+        // app came forward. Both callers go through the actor so they can't both
+        // decide to create an activity at launch.
+        await LiveActivityCoordinator.shared.sync(totalSeconds: store.totalSecondsAllApps())
     }
 
     private func loadDisplayNames() -> [String: String] {

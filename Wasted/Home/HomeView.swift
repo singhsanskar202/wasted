@@ -29,6 +29,9 @@ struct HomeView: View {
     @State private var realityCheck: RealityCheck? = nil
     @State private var trackingFailed = false
     @State private var trackingDegraded = false
+    // The last total actually pushed to ActivityKit, so a five-second poll that
+    // finds nothing new doesn't hammer the update budget.
+    @State private var lastPushedTotal = -1
 
     private let store = UsageStore()
 
@@ -399,6 +402,33 @@ struct HomeView: View {
         updateTrialState()
         updateRealityCheck()
         maybeAutoShowReceipt()
+        syncIsland()
+    }
+
+    // THE ISLAND WAS FROZEN AT WHATEVER THE TOTAL HAPPENED TO BE IN THE SINGLE
+    // MILLISECOND YOU FOREGROUNDED THE APP.
+    //
+    // Only the main app can write to the island, and it used to write exactly
+    // once per foreground (scenePhase == .active). But DeviceActivity delivers
+    // thresholds LATE, in bursts — the device logs proved that — so the sequence
+    // was:
+    //
+    //   1. you scroll; the extension records the usage but cannot touch the island
+    //   2. you open Wasted; the store says 6m, so the island is anchored at 6m
+    //   3. over the next seconds the extension delivers the BACKLOG: 7m … 13m
+    //   4. this view's five-second poll picks that up and shows 13m
+    //   5. nothing ever pushes it to the island, because scenePhase never changed
+    //
+    // App: 13m. Island: 6m. Both reading the same store.
+    //
+    // So the island is kept in sync while the app is OPEN, not just when it
+    // OPENS. Pushed only when the value actually moves — the total changes at
+    // most once a minute, so this is nowhere near ActivityKit's update budget,
+    // whereas firing on every five-second tick would be.
+    private func syncIsland() {
+        guard !isExpired, totalSeconds != lastPushedTotal else { return }
+        lastPushedTotal = totalSeconds
+        Task { await LiveActivityCoordinator.shared.sync(totalSeconds: totalSeconds) }
     }
 
     private func updateTrialState() {

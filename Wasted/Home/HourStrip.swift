@@ -28,17 +28,20 @@ struct HourStrip: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .bottom, spacing: 3) {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .bottom, spacing: 4) {
                 ForEach(0..<24, id: \.self) { hour in
                     let seconds = hour < hourly.count ? hourly[hour] : 0
-                    RoundedRectangle(cornerRadius: 1.5)
+                    RoundedRectangle(cornerRadius: 2)
                         .fill(color(for: seconds))
                         .frame(height: height(for: seconds))
                         .frame(maxWidth: .infinity)
                 }
             }
-            .frame(height: 56, alignment: .bottom)
+            // Tall enough to be a feature of the screen. At 56pt it read as a
+            // thin afterthought under a label, and the shape of the day — which
+            // is the whole point of this section — was too small to see.
+            .frame(height: 92, alignment: .bottom)
 
             // Four anchors, not twenty-four. The shape carries the meaning; the
             // axis only has to say roughly when.
@@ -46,16 +49,18 @@ struct HourStrip: View {
                 ForEach(["12a", "6a", "12p", "6p"], id: \.self) { label in
                     Text(label)
                         .font(.system(size: 10, weight: .light))
-                        .foregroundStyle(Color.ink.opacity(0.3))
+                        .tracking(0.5)
+                        .foregroundStyle(Color.ink.opacity(0.28))
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
 
             if let worst = worstWindow {
                 Text(worst)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: 15, weight: .regular, design: .serif))
+                    .italic()
                     .foregroundStyle(Color.alarm)
-                    .padding(.top, 4)
+                    .padding(.top, 6)
             }
         }
     }
@@ -70,7 +75,10 @@ struct HourStrip: View {
         // Below ten minutes there's no "worst" worth naming — it would just be
         // pointing at noise and calling it a problem.
         guard minutes >= 10 else { return nil }
-        return "worst: \(InsightEngine.hourLabel(worstHour))–\(InsightEngine.hourLabel((worstHour + 1) % 24)) · \(minutes)m"
+        // The mirror's voice, not a chart label. "worst: 9pm–10pm · 62m" read like
+        // debug output on a screen that is otherwise trying to be beautiful.
+        let window = "\(InsightEngine.hourLabel(worstHour))–\(InsightEngine.hourLabel((worstHour + 1) % 24))"
+        return "you lost \(AppGroupKeys.formattedDuration(hourly[worstHour])) between \(window)."
     }
 
     private func color(for seconds: Int) -> Color {
@@ -91,9 +99,12 @@ struct HourStrip: View {
             .opacity(0.35 + 0.65 * level)
     }
 
+    // The tallest bar must reach the TOP of the band. Scaling to less than the
+    // frame height leaves a strip of dead air above the peak, which reads as a
+    // chart that failed to draw rather than as a day with a shape.
     private func height(for seconds: Int) -> CGFloat {
         guard seconds > 0 else { return 3 }
-        return 6 + 50 * (Double(seconds) / Double(peak))
+        return 8 + 82 * (Double(seconds) / Double(peak))
     }
 }
 

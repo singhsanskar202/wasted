@@ -158,10 +158,11 @@ struct MirrorLine: View {
     }
 }
 
-// A text button with a hairline under it. The design guide's filled-ink button
-// is for primary commitments (onboarding, paywall); using it here would make
-// "today's receipt" the loudest object on a screen whose entire point is the
-// number above it.
+// An outlined pill. The underlined text link this replaces was too quiet to read
+// as a button at all — it looked like a footnote under the hero rather than the
+// one thing on this screen you're meant to tap. The filled-ink button from the
+// design guide is for primary commitments (onboarding, the paywall) and would
+// out-shout the number, so: an outline. Present, tappable, still deferential.
 struct QuietButton: View {
     let title: String
     let action: () -> Void
@@ -171,16 +172,30 @@ struct QuietButton: View {
             Haptics.light()
             action()
         } label: {
-            VStack(spacing: 5) {
-                Text(title)
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundStyle(Color.ink.opacity(0.75))
-                Rectangle()
-                    .fill(Color.ink.opacity(0.22))
-                    .frame(height: 1)
-            }
-            .fixedSize()
+            Text(title)
+                .font(.system(size: 14, weight: .regular))
+                .foregroundStyle(Color.ink.opacity(0.8))
+                .padding(.vertical, 11)
+                .padding(.horizontal, 22)
+                .overlay(
+                    Capsule().stroke(Color.ink.opacity(0.22), lineWidth: 1)
+                )
         }
         .buttonStyle(.plain)
+    }
+}
+
+// The letterspaced caps that sandwich the hero. The original screen set the
+// number between two of these — "you wasted" above, "on your phone today" below —
+// and that symmetry is most of why it read as composed rather than assembled.
+struct HeroCaption: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 11, weight: .light))
+            .tracking(2.4)
+            .textCase(.lowercase)
+            .foregroundStyle(Color.ink.opacity(0.38))
     }
 }

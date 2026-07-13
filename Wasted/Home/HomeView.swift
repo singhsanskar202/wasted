@@ -216,31 +216,36 @@ struct HomeView: View {
             .animation(.easeInOut(duration: 0.5), value: QuoteBank.Temper(seconds: totalSeconds))
     }
 
-    // HOW MUCH. The reason the app exists — the largest type in the system.
+    // HOW MUCH. The reason the app exists.
+    //
+    // The number sits BETWEEN two letterspaced caps lines — "you wasted" above,
+    // "on your phone today" below. That symmetry is most of why the original
+    // screen read as composed rather than assembled, and dropping it to a single
+    // caption underneath is what made this feel like a form.
     private var hero: some View {
         VStack(spacing: 0) {
+            HeroCaption(text: "you wasted")
+                .padding(.top, 34)
+
             HeroNumber(seconds: totalSeconds)
                 .opacity(appeared ? 1 : 0)
                 .scaleEffect(appeared || reduceMotion ? 1 : 0.9)
                 .animation(reduceMotion ? nil : .spring(duration: 0.6, bounce: 0.25).delay(0.1), value: appeared)
-                .padding(.top, 40)
+                .padding(.top, 14)
 
-            Text("you wasted today")
-                .font(.system(size: 12, weight: .light))
-                .tracking(2)
-                .foregroundStyle(Color.inkLabel)
-                .padding(.top, 10)
+            HeroCaption(text: "on your phone today")
+                .padding(.top, 14)
 
             if let equivalent = EquivalentTaskMapper.equivalent(for: totalSeconds) {
                 MirrorLine(text: equivalent.line)
-                    .padding(.top, 22)
+                    .padding(.top, 28)
                     .transition(.opacity)
             }
 
             QuietButton(title: "today's receipt") {
                 if isExpired { showingPaywall = true } else { showingReceipt = true }
             }
-            .padding(.top, 28)
+            .padding(.top, 30)
         }
         .frame(maxWidth: .infinity)
     }
@@ -252,21 +257,21 @@ struct HomeView: View {
     private var when: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel(text: "when")
-                .padding(.top, 28)
+                .padding(.top, 34)
 
             // An empty day is stated, not drawn. A 24-slot chart with nothing in
             // it renders as a void above a dashed rule, which reads as a broken
             // component rather than as "you haven't picked up your phone".
             if hourlyOrdered.contains(where: { $0 > 0 }) {
                 HourStrip(hourly: hourlyOrdered)
-                    .padding(.top, 18)
+                    .padding(.top, 22)
             } else {
                 MirrorLine(text: "nothing yet today.", size: 15)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 14)
+                    .padding(.top, 16)
             }
         }
-        .padding(.bottom, 26)
+        .padding(.bottom, 34)
     }
 
     // IS THIS A HABIT? Everything time-comparative lives here. "worst hours" moved
@@ -275,12 +280,12 @@ struct HomeView: View {
     private var pattern: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel(text: "the pattern")
-                .padding(.top, 28)
+                .padding(.top, 34)
 
             if let weekly = insightResult?.weekly {
                 WeekStrip(totals: weekly.totalSeconds, labels: weekly.dateLabels)
-                    .padding(.top, 20)
-                    .padding(.bottom, 8)
+                    .padding(.top, 22)
+                    .padding(.bottom, 10)
             } else {
                 Text(daysUntilPattern == 1
                      ? "seven days to see a pattern. one to go."
@@ -288,8 +293,8 @@ struct HomeView: View {
                     .font(.system(size: 15, weight: .regular, design: .serif))
                     .italic()
                     .foregroundStyle(Color.ink.opacity(0.35))
-                    .padding(.top, 14)
-                    .padding(.bottom, 4)
+                    .padding(.top, 16)
+                    .padding(.bottom, 6)
             }
 
             // A real comparison, not the old rule-engine verdict — which said

@@ -100,6 +100,11 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             try? await UNUserNotificationCenter.current().setBadgeCount(total / 60)
         }
 
+        // The island cannot be pushed from this process — ActivityKit is
+        // unreachable here — so publish the total for its view to PULL at render
+        // time instead.
+        store.publishLiveTotal()
+
         WidgetCenter.shared.reloadAllTimelines()
         EventLog.log(.widget, "reload requested from extension total=\(total)s")
 
@@ -133,6 +138,7 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         EventLog.log(.monitor, "combined threshold \(minutes)m (+\((newTotal - stored) / 60)m)")
 
         let total = store.totalSecondsAllApps()
+        store.publishLiveTotal()
         Task {
             try? await UNUserNotificationCenter.current().setBadgeCount(total / 60)
         }

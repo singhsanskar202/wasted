@@ -173,6 +173,7 @@ struct WastedApp: App {
         // late and in bursts, so the total keeps climbing for seconds AFTER the
         // app came forward. Both callers go through the actor so they can't both
         // decide to create an activity at launch.
+        store.publishLiveTotal()
         await LiveActivityCoordinator.shared.sync(totalSeconds: store.totalSecondsAllApps())
     }
 

@@ -85,6 +85,25 @@ final class UsageStore {
         defaults.set(DailyUsage.todayString(), forKey: AppGroupKeys.combinedSecondsDateKey)
     }
 
+    // MARK: - The island's lifeline
+
+    /// Publish the authoritative total for the Live Activity to READ at render
+    /// time. The extension cannot push to ActivityKit — it has never once managed
+    /// it — so the island's view pulls this instead of waiting to be handed a
+    /// number by an app that isn't running.
+    func publishLiveTotal() {
+        defaults.set(totalSecondsAllApps(), forKey: AppGroupKeys.liveTotalKey)
+        defaults.set(DailyUsage.todayString(), forKey: AppGroupKeys.liveTotalDateKey)
+    }
+
+    /// The published total, or nil if it belongs to a day that is over.
+    func liveTotalToday() -> Int? {
+        guard defaults.string(forKey: AppGroupKeys.liveTotalDateKey) == DailyUsage.todayString() else {
+            return nil
+        }
+        return defaults.integer(forKey: AppGroupKeys.liveTotalKey)
+    }
+
     // MARK: - Hourly
 
     func loadTodayHourly() -> HourlyUsage {

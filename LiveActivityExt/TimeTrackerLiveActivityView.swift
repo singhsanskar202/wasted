@@ -57,16 +57,38 @@ struct TimeTrackerWidget: Widget {
 
 private let alarmRed = Color(red: 1.0, green: 0.36, blue: 0.36)
 
-// The activity's day is baked into its attributes at creation. If the calendar
-// has moved past it, every number in the state belongs to a day that is over —
-// so the card reads 0m, not yesterday's total.
+// THE NUMBER THIS CARD SHOWS — pulled, not waited for.
 //
-// This is the entire midnight reset, and it needs no process to be running. The
-// monitor extension can't end the activity, and the app may not launch until
-// morning; but the system re-renders this view when staleDate passes, and
-// staleDate is pinned to midnight. That render is where the day flips.
+// The Live Activity can only be *pushed* by the main app, and the device log is
+// unambiguous about what that means in practice:
+//
+//   08:28:54  app  FOREGROUND, island updated → 6m
+//   08:28:56  app  BACKGROUND                      (two seconds in the app)
+//   08:32:50  mon  threshold 7m
+//   …
+//   08:38:32  mon  threshold 13m                   (ten more minutes of scrolling)
+//
+// Every one of those minutes was recorded. None could be reported: the monitor
+// extension has never once reached ActivityKit (every island write in the whole
+// log came from `app`), and iOS granted exactly ONE background run in twelve
+// hours. So the app said 13m and the island said 6m — both reading the same store.
+//
+// This view runs in an extension that holds the App Group entitlement, so it can
+// read that store DIRECTLY. Now every redraw the system performs — waking the
+// phone, expanding the island, the staleDate tick — reads the live total instead
+// of a snapshot handed over ten minutes ago by an app that has since died.
+//
+// max() with the pushed value, never min: the number may only ever go up. And a
+// published total from a day that is over is ignored, which is the midnight reset.
 private func confirmedSeconds(_ context: ActivityViewContext<TimeTrackerAttributes>) -> Int {
-    context.attributes.day == AppGroupKeys.dayString() ? context.state.totalSeconds : 0
+    let pushed = context.attributes.day == AppGroupKeys.dayString() ? context.state.totalSeconds : 0
+
+    guard
+        let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID),
+        defaults.string(forKey: AppGroupKeys.liveTotalDateKey) == AppGroupKeys.dayString()
+    else { return pushed }
+
+    return max(pushed, defaults.integer(forKey: AppGroupKeys.liveTotalKey))
 }
 
 // MARK: - Shared card

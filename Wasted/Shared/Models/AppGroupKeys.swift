@@ -39,6 +39,22 @@ enum AppGroupKeys {
     static let combinedSecondsKey = "combined_seconds"
     static let combinedSecondsDateKey = "combined_seconds_date"
 
+    // THE ISLAND'S LIFELINE.
+    //
+    // The Live Activity can only be *pushed* by the main app, and the main app is
+    // not running while you scroll — device logs show it going to background two
+    // seconds after launch, then ten minutes of usage arriving with nobody able to
+    // report it. Every island write in the log came from the app; not one from the
+    // extension, which is the only process that knows.
+    //
+    // So the island PULLS instead. The extension writes the authoritative total
+    // here on every threshold, and the Live Activity view — which lives in an
+    // extension holding the App Group entitlement — reads it at render time. Any
+    // redraw the system performs (waking the phone, expanding the island) then
+    // shows the truth instead of a frozen snapshot handed over minutes ago.
+    static let liveTotalKey = "live_total_seconds"
+    static let liveTotalDateKey = "live_total_date"
+
     // MARK: - Day boundary
     //
     // Nothing we control runs at midnight. The monitor extension's

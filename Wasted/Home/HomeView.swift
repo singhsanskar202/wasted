@@ -200,20 +200,20 @@ struct HomeView: View {
         refresh()
     }
 
-    // THE MIRROR, SPEAKING. Not a fortune cookie: its temper comes from today's
-    // real number, so it's patient at twenty minutes and it is not at four hours.
-    // The line changes underneath the user as the day gets worse, which is the
-    // only kind of provocation that can't be shrugged off — it knows.
+    // THE THESIS. The question the entire app exists to ask, and the first thing
+    // you read every time you open it. It never changes — that's the point of a
+    // thesis. The line that ESCALATES with your number is now the closing one, at
+    // the bottom: you open to the question, and you leave with whatever today has
+    // earned.
     private var voice: some View {
-        Text(QuoteBank.quote(forSeconds: totalSeconds))
-            .font(.system(size: 15, weight: .light, design: .serif))
+        Text("is this how you want to spend your one life?")
+            .font(.system(size: 16, weight: .regular, design: .serif))
             .italic()
-            .foregroundStyle(Color.ink.opacity(0.42))
+            .foregroundStyle(Color.ink.opacity(0.5))
             .multilineTextAlignment(.center)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 8)
             .padding(.top, 52)
-            .animation(.easeInOut(duration: 0.5), value: QuoteBank.Temper(seconds: totalSeconds))
     }
 
     // THE NUMBER. One thing dominates this screen, and this is it.
@@ -341,25 +341,25 @@ struct HomeView: View {
         .padding(.bottom, 26)
     }
 
-    // THE THESIS. The last thing you read before you put the phone down.
+    // THE MIRROR, ESCALATING. It gets meaner as the number climbs — patient at
+    // twenty minutes, brutal at four hours — and it's the last thing you read
+    // before you put the phone down.
     //
-    // It used to live in the quote bank's `brutal` tier, which meant you'd only
-    // ever see the line the whole product is built on if you'd already lost four
-    // hours — the one day it's least likely to change anything. It doesn't
-    // escalate and it doesn't rotate: the line at the TOP is the rage bait and it
-    // changes with the number, and this one is the constant it always comes back
-    // to.
+    // It used to sit at the top. The THESIS sits there now, because the thesis is
+    // the constant and the provocation is the variable: you open to the question
+    // the whole app exists to ask, and you leave with whatever today has earned.
     private var closing: some View {
-        Text("is this how you want to spend your one life?")
-            .font(.system(size: 16, weight: .regular, design: .serif))
+        Text(QuoteBank.quote(forSeconds: totalSeconds))
+            .font(.system(size: 15, weight: .light, design: .serif))
             .italic()
-            .foregroundStyle(Color.ink.opacity(0.5))
+            .foregroundStyle(Color.ink.opacity(0.42))
             .multilineTextAlignment(.center)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 12)
-            .padding(.top, 20)
+            .padding(.top, 22)
             .padding(.bottom, 64)
+            .animation(.easeInOut(duration: 0.5), value: QuoteBank.Temper(seconds: totalSeconds))
     }
 
     private var expiredOverlay: some View {

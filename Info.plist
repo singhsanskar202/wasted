@@ -17,5 +17,12 @@
 		<string>fetch</string>
 		<string>processing</string>
 	</array>
+
+	<!-- Export compliance. The app makes NO network requests at all — there is no
+	     server, no account, no analytics — so it uses no encryption beyond what
+	     iOS itself provides. Declaring it here stops App Store Connect asking the
+	     same question on every single upload. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Wasted's privacy manifest.
+
+	  This app makes exactly one promise — "your data. your device. nobody else
+	  sees it." — and this file is where that promise becomes a machine-readable
+	  claim Apple can hold us to. Everything below is literally true: there is no
+	  server, no account, no network request, and no analytics SDK anywhere in the
+	  app. The App Store nutrition label is "Data Not Collected".
+	-->
+
+	<!-- No tracking. No tracking domains. Nothing to declare. -->
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+
+	<!-- Nothing is collected. Screen-time data never leaves the device. -->
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+
+	<!--
+	  Required-reason APIs. UserDefaults is on Apple's list, and without this
+	  declaration every upload is flagged ITMS-91053.
+
+	  CA92.1 = "Access info from the same app, or the app group the app is a
+	  member of." That is exactly what we do: the app, the DeviceActivityMonitor
+	  extension, the widget and the Live Activity all read and write the shared
+	  App Group suite (group.com.sanskar.Wasted). It is the only way those four
+	  processes can see the same usage numbers, and none of it is read from — or
+	  written to — anywhere outside this app.
+	-->
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

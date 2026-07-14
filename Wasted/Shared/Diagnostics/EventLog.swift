@@ -104,6 +104,7 @@ enum EventLog {
         log(.app, "───── launch · install=\(installID.prefix(6)) v\(version)(\(build)) "
             + "· \(deviceModel) · iOS \(ProcessInfo.processInfo.operatingSystemVersionString) "
             + "· plan=\(plan)")
+
     }
 
     /// Stable per-install identifier, so two testers' logs can be told apart. Not

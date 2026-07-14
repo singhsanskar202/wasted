@@ -6,32 +6,32 @@ final class TrialClockTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 1_780_000_000)
 
     func test_unlocked_winsRegardlessOfFirstLaunch() {
-        XCTAssertEqual(TrialClock.state(firstLaunch: nil, unlocked: true, now: now), .unlocked)
+        XCTAssertEqual(TrialClock.trialState(firstLaunch: nil, unlocked: true, now: now), .unlocked)
         let old = now.addingTimeInterval(-30 * 86400)
-        XCTAssertEqual(TrialClock.state(firstLaunch: old, unlocked: true, now: now), .unlocked)
+        XCTAssertEqual(TrialClock.trialState(firstLaunch: old, unlocked: true, now: now), .unlocked)
     }
 
     func test_nilFirstLaunch_isFullTrial() {
-        XCTAssertEqual(TrialClock.state(firstLaunch: nil, unlocked: false, now: now), .trial(daysLeft: 7))
+        XCTAssertEqual(TrialClock.trialState(firstLaunch: nil, unlocked: false, now: now), .trial(daysLeft: 7))
     }
 
     func test_day0_isFullTrial() {
-        XCTAssertEqual(TrialClock.state(firstLaunch: now, unlocked: false, now: now), .trial(daysLeft: 7))
+        XCTAssertEqual(TrialClock.trialState(firstLaunch: now, unlocked: false, now: now), .trial(daysLeft: 7))
     }
 
     func test_day6point9_hasOneDayLeft() {
         let firstLaunch = now.addingTimeInterval(-6.9 * 86400)
-        XCTAssertEqual(TrialClock.state(firstLaunch: firstLaunch, unlocked: false, now: now), .trial(daysLeft: 1))
+        XCTAssertEqual(TrialClock.trialState(firstLaunch: firstLaunch, unlocked: false, now: now), .trial(daysLeft: 1))
     }
 
     func test_day7point0_isExpired() {
         let firstLaunch = now.addingTimeInterval(-7 * 86400)
-        XCTAssertEqual(TrialClock.state(firstLaunch: firstLaunch, unlocked: false, now: now), .expired)
+        XCTAssertEqual(TrialClock.trialState(firstLaunch: firstLaunch, unlocked: false, now: now), .expired)
     }
 
     func test_wellPastTrial_isExpired() {
         let firstLaunch = now.addingTimeInterval(-30 * 86400)
-        XCTAssertEqual(TrialClock.state(firstLaunch: firstLaunch, unlocked: false, now: now), .expired)
+        XCTAssertEqual(TrialClock.trialState(firstLaunch: firstLaunch, unlocked: false, now: now), .expired)
     }
 
     func test_usageStore_firstLaunchRoundTrip() {

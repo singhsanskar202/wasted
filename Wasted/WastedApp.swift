@@ -30,6 +30,11 @@ struct WastedApp: App {
         // Stamps build, device, iOS and the active threshold plan into the log. A
         // log arriving from someone else's phone is close to useless without them.
         EventLog.logSession()
+        // A build that shipped with the paywall off should be obvious in the first
+        // lines of its own log — not discovered by a user who is never asked to pay.
+        if !TrialClock.paywallEnabled {
+            EventLog.error(.trial, "PAYWALL DISABLED — beta build. TrialClock.paywallEnabled must be true to ship.")
+        }
     }
 
     var body: some Scene {

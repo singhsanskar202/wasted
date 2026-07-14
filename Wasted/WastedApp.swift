@@ -86,7 +86,7 @@ struct WastedApp: App {
                     usage: store.loadTodayUsage(),
                     displayNames: displayNames
                 )
-                Task { await Self.refreshLiveActivity(store: store) }
+                Task { await Self.refreshLiveActivity(store: store, canCreate: true) }
             case .background:
                 EventLog.log(.app, "BACKGROUND — scheduling refresh + nightly rotation")
                 scheduleAppRefresh()
@@ -107,7 +107,7 @@ struct WastedApp: App {
         let work = Task {
             EventLog.log(.background, "nightly rotation GRANTED by iOS")
             scheduleNightlyRotation()          // chain tomorrow's
-            await refreshLiveActivity(store: UsageStore())
+            await refreshLiveActivity(store: UsageStore(), canCreate: false)
             task.setTaskCompleted(success: true)
         }
         task.expirationHandler = {
@@ -155,7 +155,7 @@ struct WastedApp: App {
     private func handleAppRefresh() async {
         scheduleAppRefresh()               // chain the next one
         Self.scheduleNightlyRotation()
-        await Self.refreshLiveActivity(store: UsageStore())
+        await Self.refreshLiveActivity(store: UsageStore(), canCreate: false)
     }
 
     // Activity.request() only succeeds from the main app process — the
@@ -163,7 +163,10 @@ struct WastedApp: App {
     // main app both creates the daily activity and, on every run, rotates or
     // refreshes it. Static because the overnight BGProcessingTask handler is
     // registered in init() and has no instance to call through.
-    private static func refreshLiveActivity(store: UsageStore) async {
+    /// `canCreate` must be TRUE only when the app is in the FOREGROUND — iOS
+    /// refuses Activity.request() from the background (two days of device logs:
+    /// every failure was a background run, every success a foreground one).
+    private static func refreshLiveActivity(store: UsageStore, canCreate: Bool) async {
         let trialState = TrialClock.state(firstLaunch: store.firstLaunchDate(), unlocked: store.isUnlocked())
         guard trialState != .expired else { return }
 
@@ -177,7 +180,7 @@ struct WastedApp: App {
         // app came forward. Both callers go through the actor so they can't both
         // decide to create an activity at launch.
         store.publishLiveTotal()
-        await LiveActivityCoordinator.shared.sync(totalSeconds: store.totalSecondsAllApps())
+        await LiveActivityCoordinator.shared.sync(totalSeconds: store.totalSecondsAllApps(), canCreate: canCreate)
     }
 
     private func loadDisplayNames() -> [String: String] {

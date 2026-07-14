@@ -463,7 +463,7 @@ struct HomeView: View {
     private func syncIsland() {
         guard !isExpired, totalSeconds != lastPushedTotal else { return }
         lastPushedTotal = totalSeconds
-        Task { await LiveActivityCoordinator.shared.sync(totalSeconds: totalSeconds) }
+        Task { await LiveActivityCoordinator.shared.sync(totalSeconds: totalSeconds, canCreate: true) }
     }
 
     private func updateTrialState() {

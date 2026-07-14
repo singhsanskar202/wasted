@@ -77,14 +77,32 @@ actor LiveActivityCoordinator {
     static let shared = LiveActivityCoordinator()
     private let manager = LiveActivityManager()
 
-    func sync(totalSeconds: Int) async {
-        await manager.startOrUpdate(totalSeconds: totalSeconds)
+    /// `canCreate` is FALSE from any background caller. See startOrUpdate.
+    func sync(totalSeconds: Int, canCreate: Bool) async {
+        await manager.startOrUpdate(totalSeconds: totalSeconds, canCreate: canCreate)
     }
 }
 
 final class LiveActivityManager {
 
-    func startOrUpdate(totalSeconds: Int) async {
+    // A LIVE ACTIVITY CAN ONLY BE *STARTED* FROM THE FOREGROUND.
+    //
+    // Two days of device logs make this unambiguous: every single
+    // `Activity.request()` failure came from a background run, and every
+    // successful CREATE came from a foreground one. Background runs CAN update an
+    // activity that already exists — they did so dozens of times — they just
+    // cannot bring one into being. (Push-to-start is the documented exception,
+    // and it needs a server, which this app will never have.)
+    //
+    // The old code didn't know that, and it was worse than merely failing: the
+    // `.replace` path ENDS every existing activity and THEN requests a new one. A
+    // background rotation (activity older than 7h) would therefore have killed a
+    // perfectly good island and then failed to build its replacement — actively
+    // destroying the thing it was trying to preserve.
+    //
+    // So background callers may only ever UPDATE. If there's nothing to update,
+    // they do nothing and wait for the user to open the app.
+    func startOrUpdate(totalSeconds: Int, canCreate: Bool) async {
         let content = Self.makeContent(totalSeconds: totalSeconds)
         let today = Self.dayString()
         let activities = Activity<TimeTrackerAttributes>.activities
@@ -93,6 +111,12 @@ final class LiveActivityManager {
             existing: activities.map(Self.snapshot),
             today: today
         )
+
+        // Never end an activity we cannot replace.
+        if case .replace = decision, !canCreate {
+            EventLog.log(.island, "background: cannot create (foreground-only) — leaving \(activities.count) activity(s) untouched")
+            return
+        }
 
         switch decision {
         case .update(let id):

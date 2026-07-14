@@ -86,6 +86,7 @@ struct WastedApp: App {
                     usage: store.loadTodayUsage(),
                     displayNames: displayNames
                 )
+                MorningReport().refresh(store: store)
                 Task { await Self.refreshLiveActivity(store: store, canCreate: true) }
             case .background:
                 EventLog.log(.app, "BACKGROUND — scheduling refresh + nightly rotation")

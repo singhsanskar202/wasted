@@ -10,6 +10,7 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     let liveActivityManager = LiveActivityManager()
     let notificationScheduler = NotificationScheduler()
     let receiptScheduler = ReceiptScheduler()
+    let morningReport = MorningReport()
 
     // The day boundary. If these two stop firing, EVERY downstream surface
     // silently keeps yesterday's numbers — and until now nothing recorded
@@ -91,6 +92,10 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             }
 
             receiptScheduler.refresh(usage: store.loadTodayUsage(), displayNames: allDisplayNames())
+            // Yesterday's bill, delivered tomorrow morning while the day can still
+            // be changed. A local notification carries STATIC content, so the only
+            // way its number can be right is to keep replacing it with a fresher one.
+            morningReport.refresh(store: store)
         } else {
             EventLog.log(.trial, "EXPIRED — recording continues, nudges/island suppressed")
         }

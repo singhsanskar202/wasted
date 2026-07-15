@@ -18,6 +18,30 @@ final class UsageStoreTests: XCTestCase {
         super.tearDown()
     }
 
+    // THE MIDNIGHT ARCHIVE BUG (device log, 2026-07-15).
+    //
+    // intervalDidEnd fires at ~00:00:02, when todayString() is the NEW day. It
+    // archived via loadTodayUsage(), which returns EMPTY once the date rolls — so
+    // it saved "total=0s" and erased the day that just ended, which then made the
+    // 8am morning report skip ("nothing to report"). Archiving must read the
+    // record on disk, not ask for "today".
+    func test_loadStoredDay_returnsYesterdaysRecord_evenAfterMidnight() {
+        var yesterday = DailyUsage(date: "2026-07-14")
+        yesterday.add(seconds: 6900, for: "0")   // 1h55m — the real vanished total
+        sut.save(yesterday)
+
+        // loadTodayUsage() correctly refuses it (wrong day) …
+        XCTAssertTrue(sut.loadTodayUsage().seconds.isEmpty)
+        // … but loadStoredDay() hands back exactly what intervalDidEnd must archive.
+        let stored = sut.loadStoredDay()
+        XCTAssertEqual(stored?.date, "2026-07-14")
+        XCTAssertEqual(stored?.seconds.values.reduce(0, +), 6900)
+    }
+
+    func test_loadStoredDay_isNilWhenNothingStored() {
+        XCTAssertNil(sut.loadStoredDay())
+    }
+
     func test_loadToday_returnsEmptyUsage_whenNothingStored() {
         let usage = sut.loadTodayUsage()
         XCTAssertEqual(usage.date, DailyUsage.todayString())

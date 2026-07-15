@@ -12,13 +12,25 @@ final class UsageStore {
 
     func loadTodayUsage() -> DailyUsage {
         let today = DailyUsage.todayString()
-        guard
-            let data = defaults.data(forKey: AppGroupKeys.dailyUsageKey),
-            let usage = try? JSONDecoder().decode(DailyUsage.self, from: data),
-            usage.date == today
-        else {
+        guard let usage = loadStoredDay(), usage.date == today else {
             return DailyUsage(date: today)
         }
+        return usage
+    }
+
+    /// The stored day record AS-IS, whatever date it carries.
+    ///
+    /// `intervalDidEnd` fires at ~00:00:02, when `todayString()` is already the
+    /// NEW day — so loadTodayUsage() there returns an empty record and archived
+    /// `total=0s`, wiping the day that just ended. (Device log, 2026-07-15: it
+    /// archived "2026-07-15 total=0s" and yesterday's 1h55m vanished, which then
+    /// made the 8am morning report skip because loadYesterday() found nothing.)
+    /// Archiving must read the record that's actually there, not ask for "today".
+    func loadStoredDay() -> DailyUsage? {
+        guard
+            let data = defaults.data(forKey: AppGroupKeys.dailyUsageKey),
+            let usage = try? JSONDecoder().decode(DailyUsage.self, from: data)
+        else { return nil }
         return usage
     }
 

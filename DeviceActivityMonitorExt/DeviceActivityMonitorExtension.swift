@@ -29,9 +29,13 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     }
 
     override func intervalDidEnd(for activity: DeviceActivityName) {
-        let today = store.loadTodayUsage()
-        EventLog.log(.monitor, "intervalDidEnd — archiving \(today.date) total=\(today.seconds.values.reduce(0, +))s")
-        store.archiveToHistory(today)
+        // The STORED record, not loadTodayUsage(). This fires at ~00:00:02, when
+        // "today" is already the new (empty) day — so asking for today archived
+        // total=0s and erased the day that just ended. Read what's actually on
+        // disk: it still holds the day that was running a moment ago.
+        let ending = store.loadStoredDay() ?? store.loadTodayUsage()
+        EventLog.log(.monitor, "intervalDidEnd — archiving \(ending.date) total=\(ending.seconds.values.reduce(0, +))s")
+        store.archiveToHistory(ending)
         // Known no-op: ActivityKit is unreachable from this process, so the
         // island survives midnight regardless. The view resets itself instead
         // (staleDate pinned to midnight + a day check).

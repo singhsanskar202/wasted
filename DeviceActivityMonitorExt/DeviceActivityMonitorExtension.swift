@@ -82,7 +82,7 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         if NudgeGate.shouldNudge(minutes: minutes, last: store.lastNudge(for: appIndex)) {
             // Pick a line today hasn't spent yet, then burn it — a nudge the
             // user has already read is a nudge they scroll past.
-            let line = NudgeCopy.next(minutes: minutes, used: store.usedNudgeLines())
+            let line = NudgeCopy.next(minutes: minutes, used: store.usedNudgeLines(), intentions: store.intentions())
             // If the island died and nothing but a foreground open can fix
             // it, this nudge — one the user was getting anyway — carries the
             // fact, once. Its tap is the revival.

@@ -108,6 +108,11 @@ enum AppGroupKeys {
     // home screen's five-second tick, which stays on the 7-day rolling window.
     static let archiveKey = "usage_archive"
     static let lastReceiptAutoShowKey = "last_receipt_auto_show"
+    // The user's own finished sentence — "i keep meaning to: …" — stored as a
+    // JSON [String]. The nudge rotation quotes these back mid-scroll ("you
+    // said: play the ukulele."). Never advice: the app only repeats what the
+    // user themselves wrote. On-device like everything else.
+    static let intentionsKey = "intentions"
     static let dailyGuessKey = "daily_guess_seconds"
     static let realityCheckShownKey = "reality_check_shown"
 

@@ -108,14 +108,48 @@ enum NudgeCopy {
     // as an instruction: the notification's tap already does the reviving.
     static let meterDarkLine = "the meter is dark. the count isn't."
 
+    // THE PERSONAL LINES — the sharpest copy in the bank, and the app didn't
+    // write a word of it. During onboarding the user finishes the sentence
+    // "i keep meaning to: …"; mid-scroll, a nudge quotes it back: "you said:
+    // play the ukulele." No advice is given — the mirror only repeats what
+    // the user themselves wrote, at the moment it costs the most. The colon
+    // construction is deliberate: it quotes ANY phrase without conjugating it.
+    //
+    // IDs start at 100 and are POSITIONAL, so the no-repeat set survives
+    // rewording ("play ukulele" → "play the ukulele" keeps id 100). Editing
+    // an intention mid-day at worst re-arms one line — acceptable.
+    static let personalLineBase = 100
+
+    static func personalLines(_ intentions: [String]) -> [Line] {
+        intentions.prefix(3).enumerated().map { index, phrase in
+            Line(id: personalLineBase + index, text: "you said: \(phrase).")
+        }
+    }
+
+    /// What the intentions editor stores: trimmed, lowercased (the mirror's
+    /// register), no trailing period (the template adds its own). nil when
+    /// nothing survives.
+    static func canonicalIntention(_ raw: String) -> String? {
+        var text = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        while text.hasSuffix(".") { text.removeLast() }
+        return text.isEmpty ? nil : text
+    }
+
     // Never sends the same line twice in a day while an unused one exists —
     // a nudge that repeats stops being read, and one that stops being read
     // stops working. `used` is the day's set from UsageStore, cleared at
-    // midnight with everything else.
-    static func next(minutes: Int, used: Set<Int>, pick: ([Line]) -> Line? = { $0.randomElement() }) -> Line {
-        let pool = Tier(minutes: minutes).lines
+    // midnight with everything else. Personal lines join every tier's pool:
+    // "you said: …" lands at any hour, and with ≤3 of them against a tier's
+    // six the rotation stays mostly fresh copy.
+    static func next(
+        minutes: Int,
+        used: Set<Int>,
+        intentions: [String] = [],
+        pick: ([Line]) -> Line? = { $0.randomElement() }
+    ) -> Line {
+        let pool = Tier(minutes: minutes).lines + personalLines(intentions)
         let unused = pool.filter { !used.contains($0.id) }
-        // Tier exhausted: reuse it rather than fall silent or reach for a line
+        // Pool exhausted: reuse it rather than fall silent or reach for a line
         // written for a different hour of the day.
         return pick(unused.isEmpty ? pool : unused) ?? pool[0]
     }

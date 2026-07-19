@@ -261,6 +261,21 @@ final class UsageStore {
         defaults.set(DailyUsage.todayString(), forKey: AppGroupKeys.nudgeLinesDateKey)
     }
 
+    // The user's own "i keep meaning to: …" sentences — the personal nudge
+    // lines' source. Order preserved: it's the order they said them in.
+    func intentions() -> [String] {
+        guard
+            let data = defaults.data(forKey: AppGroupKeys.intentionsKey),
+            let list = try? JSONDecoder().decode([String].self, from: data)
+        else { return [] }
+        return list
+    }
+
+    func setIntentions(_ list: [String]) {
+        guard let data = try? JSONEncoder().encode(list) else { return }
+        defaults.set(data, forKey: AppGroupKeys.intentionsKey)
+    }
+
     private func loadNudgeRecords() -> [String: NudgeRecord] {
         guard
             let data = defaults.data(forKey: AppGroupKeys.nudgeRecordsKey),

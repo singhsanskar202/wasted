@@ -22,6 +22,8 @@ struct HomeView: View {
     @State private var showingReceipt = false
     @State private var showingPaywall = false
     @State private var showingHistory = false
+    @State private var showingIntentions = false
+    @State private var intentionCount = UsageStore().intentions().count
     @State private var hourlyData = UsageStore().loadTodayHourly()
     @State private var totalSeconds = UsageStore().totalSecondsAllApps()
     @State private var appeared = false
@@ -111,6 +113,17 @@ struct HomeView: View {
         }
         .sheet(isPresented: $showingPaywall) {
             PaywallView(store: proStore)
+        }
+        .sheet(isPresented: $showingIntentions) {
+            IntentionsEditor(
+                initial: store.intentions(),
+                ctaTitle: "done",
+                allowsSkip: false
+            ) { intentions in
+                store.setIntentions(intentions)
+                intentionCount = intentions.count
+                showingIntentions = false
+            }
         }
         .sheet(isPresented: $showingHistory) {
             // Built at presentation, not on the refresh tick: the archive is
@@ -322,6 +335,15 @@ struct HomeView: View {
             .onChange(of: selection) { _, newValue in
                 saveSelection(newValue)
                 ActivityScheduler.shared.startMonitoring(selection: newValue)
+            }
+
+            // The sentence behind the personal nudges — editable as life
+            // changes. Ledger grammar, user's own words behind the tap.
+            LedgerRow(
+                label: "you said",
+                value: intentionCount == 0 ? "nothing yet" : "\(intentionCount) thing\(intentionCount == 1 ? "" : "s")"
+            ) {
+                showingIntentions = true
             }
 
             // BETA ONLY — remove before the App Store.

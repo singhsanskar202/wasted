@@ -23,59 +23,63 @@ Fallbacks:  `See what your phone costs you`      (29)
 
 ## Promotional text (170 chars max — editable without review, use for launches)
 
-> Your phone knows exactly what it took from you today. Now you do too. The
-> number on your lock screen, all day. Nothing leaves your device.
+> Nobody thinks they scroll four hours a day. Then they see the number — on
+> the lock screen, all day, impossible to unsee. Nothing leaves your device.
 
-(148 chars)
+(150 chars)
 
-## Description (4000 chars max — draft ~1900)
+## Description (4000 chars max — draft ~2300)
+
+The arc is the app's own arc: guess → truth → it follows you → it speaks at
+the moment of choice → it remembers → it quotes you. The reader should feel
+the reality check while still on the store page. No hype, no cure claims —
+the transformation on sale is *you will know, and you can't unsee it*.
 
 ```
-Wasted keeps one number in front of you: how much of today went to your
-phone. On your lock screen. In the Dynamic Island. On the home screen when
-you open the app. Not to shame you. Not to block you. Just so you can't
-not know.
+How much do you think you scrolled yesterday?
 
-Most screen time apps congratulate you, gamify you, or lock you out.
-Wasted is a mirror. It never blocks an app, never breaks a streak, never
-tells you what to do. It keeps count — honestly, all day — and lets the
-number do the talking.
+Lock in a number. That guess is the first thing Wasted asks for — before
+it shows you anything. A few days later it shows you what the truth was.
+That moment is why this app exists. Almost nobody guesses high.
 
-WHAT IT DOES
+Wasted is not another screen time app. It never blocks, never shames,
+never congratulates, never coaches. It is a mirror: it keeps the one
+number you avoid in front of you until you stop avoiding it.
 
-— The number, everywhere. A live counter on your lock screen and in the
-  Dynamic Island. It climbs while you scroll and resets at midnight.
+THE NUMBER FOLLOWS YOU
+A live counter on your lock screen and in the Dynamic Island, climbing
+while you scroll. White while the day is ordinary. Amber after an hour.
+Red when a quarter of your waking day is gone. You see it every time you
+pick up the phone — which is exactly the problem, working for you.
 
-— Nudges that state facts. Every 15 minutes inside the apps you choose to
-  track, a quiet notification: "the number only goes up from here." No
-  advice. No guilt trips. Just the count.
+IT SPEAKS AT THE MOMENT OF CHOICE
+Quiet nudges while you're inside the apps you chose to track: "you've
+already seen this feed." Never advice. Just the count, and what it means.
 
-— Tonight's receipt. An itemised bill of the day, app by app, with the
-  total measured against your waking hours.
+IT QUOTES YOU
+During setup you finish one sentence: "i keep meaning to…" — play the
+ukulele, read, write, run. Mid-scroll, the mirror hands your own words
+back: "you said: play the ukulele." Hardest notification to swipe away
+that you'll ever receive. You wrote it.
 
-— The morning report. Yesterday's bill, delivered at 8am — while today
-  can still be different.
+IT BILLS YOU
+Tonight's receipt: the day itemised, app by app, measured against your
+waking hours. The morning report at 8am: yesterday's bill, while today
+can still be different. Danger zones: the exact hours your life leaks.
 
-— Danger zones. The hours of the day where your time actually leaks,
-  drawn to an honest scale.
-
-— A widget that never sleeps, for your lock screen or home screen.
-
-WASTED PRO — THE LONG RECEIPT
-
-The daily mirror is free. Forever. Pro buys its memory: your all-time
-total, your average day, your worst day, every month on one ledger, and
-what your current rate costs you in days per year. Monthly, yearly, or
-own it forever with a one-time purchase.
+WASTED PRO — THE MIRROR REMEMBERS, AND ARRIVES EARLY
+The daily mirror is free, forever. Pro buys its memory: the long receipt —
+your all-time total, average day, worst day, month by month, and what
+your current rate costs in days per year. And the habit bell: when your
+costliest window keeps repeating, a notification arrives as it OPENS —
+"9pm–11pm. 5 of the last 7 nights, about 41m a time. today isn't written
+yet." Screen time apps report your past. This one shows up before it
+happens again. Monthly, yearly, or yours forever with one purchase.
 
 PRIVATE BY ARCHITECTURE
-
-Wasted uses Apple's Screen Time framework. Your usage data is processed
-entirely on your device. There is no account, no analytics, no server —
-nothing leaves your phone. We couldn't read your data if we wanted to.
-
-Wasted needs Screen Time permission to count, and it only counts the
-apps you pick.
+Everything is computed on your device. No account, no analytics, no
+server — nothing leaves your phone. We couldn't read your data if we
+wanted to. Wasted counts only the apps you pick.
 
 Is this how you want to spend your one life?
 ```
@@ -111,23 +115,22 @@ self-managed (individual authorization), not parental controls — say so in
 review notes.
 
 ## Screenshots (6.9" required; reuse for 6.5". Dark canvas, real UI, one
-lowercase caption per shot, serif)
+lowercase caption per shot, serif. The sequence is the transformation arc —
+a viewer swiping through should feel watched, then quoted, then billed.)
 
 1. HOME HERO — the number at 2h 25m, thesis line visible.
    Caption: "the number you avoid. kept."
-2. LOCK SCREEN — island + live activity against a wallpaper.
+2. LOCK SCREEN — island + live activity, red state, against a wallpaper.
    Caption: "it follows you all day."
-3. NUDGE — notification over a feed-shaped blur: "you've already seen this feed."
-   Caption: "it speaks up while it's happening."
-4. RECEIPT — tonight's itemised bill.
-   Caption: "an itemised bill, every night."
-5. DANGER ZONES — the hour strip with one red bar.
-   Caption: "see where the day leaks."
+3. NUDGE — a real notification: "you said: play the ukulele."
+   Caption: "it quotes you. you wrote the line."
+4. HABIT BELL (Pro) — "9pm–11pm — 5 of the last 7 days…" notification.
+   Caption: "it shows up before the habit does."
+5. RECEIPT — tonight's itemised bill.
+   Caption: "the day, itemised. every night."
 6. LONG RECEIPT (Pro) — all-time ledger + "at this rate: 46 days a year."
-   Caption: "pro: the mirror remembers."
-
-Optional 7th: plain canvas, single line — "nothing leaves your phone." —
-privacy as a closing argument.
+   Caption: "the mirror remembers."
+7. CLOSER — plain canvas, one line: "nothing leaves your phone."
 
 No device frames with hands, no gradients, no feature-grid collages: the
 app's austerity IS the brand; the shots should look like the app.

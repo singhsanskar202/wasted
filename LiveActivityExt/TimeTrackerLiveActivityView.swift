@@ -5,7 +5,7 @@ import WidgetKit
 // One shared card renders both the lock screen banner and the expanded
 // island, mirroring HomeView's composition (wordmark → hero number →
 // equivalent line → grounding bar) so every surface speaks the same
-// language: single centered axis, quiet captions, one red accent.
+// language: single centered axis, quiet captions, colour only as severity.
 //
 // The time is the last CONFIRMED total: "47m" under an hour, "2:50" (h:mm)
 // past it — never raw minutes, never seconds, and never a guess. It refreshes
@@ -43,19 +43,42 @@ struct TimeTrackerWidget: Widget {
                     .italic()
                     .foregroundStyle(.white)
             } compactTrailing: {
+                // The compact number is the surface the user actually lives
+                // with — it carries the ramp, so the pill's meaning is
+                // readable without expanding it.
                 ConfirmedTimeText(context: context, fontSize: 15)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(severityColor(confirmedSeconds(context)))
             } minimal: {
+                // When another activity owns the island, this dot is all we
+                // get — the ramp is the only information that fits.
                 Text("W")
                     .font(.system(size: 12, weight: .bold, design: .serif))
                     .italic()
-                    .foregroundStyle(.white)
+                    .foregroundStyle(severityColor(confirmedSeconds(context)))
             }
+            .keylineTint(severityColor(confirmedSeconds(context)))
         }
     }
 }
 
 private let alarmRed = Color(red: 1.0, green: 0.36, blue: 0.36)
+private let cautionAmber = Color(red: 0.98, green: 0.66, blue: 0.22)
+
+// THE ISLAND'S SEVERITY RAMP — the number's colour is the glance.
+//
+// Same law as the home screen (Ledger.swift): red means "this number is bad",
+// never decoration. The old card flipped red at 1h, which made red cheap by
+// dinner, and painted the day-fraction bar red even at five minutes — alarm
+// as decoration, exactly what the design guide bans. The ramp gives the
+// island a midpoint: white while the number is ordinary, amber once an hour
+// is gone, alarm red at 4h — a quarter of the waking day, the same threshold
+// the home hero uses. (This extension doesn't compile Theme.swift, hence the
+// local colours — brightened for the pure-black island canvas.)
+private func severityColor(_ seconds: Int) -> Color {
+    if seconds >= AppGroupKeys.awakeDayHours * 3600 / 4 { return alarmRed }
+    if seconds >= 3600 { return cautionAmber }
+    return .white
+}
 
 // THE NUMBER THIS CARD SHOWS — pulled, not waited for.
 //
@@ -135,7 +158,7 @@ private struct WastedCard: View {
             // Hero — the one thing this surface exists to show. Scaled to
             // own the canvas: the number is the product.
             ConfirmedTimeText(context: context, fontSize: heroSize)
-                .foregroundStyle(total >= 3600 ? alarmRed : .white)
+                .foregroundStyle(severityColor(total))
                 .padding(.top, 12)
 
             // The confrontation line, centered under the hero like HomeView.
@@ -161,8 +184,12 @@ private struct WastedCard: View {
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
                         Capsule().fill(.white.opacity(0.14))
+                        // The bar wears the ramp too. It used to be alarm red
+                        // from the first minute — red as decoration, which the
+                        // design guide bans. Neutral until the number earns a
+                        // colour.
                         Capsule()
-                            .fill(alarmRed)
+                            .fill(severityColor(total) == .white ? AnyShapeStyle(.white.opacity(0.45)) : AnyShapeStyle(severityColor(total)))
                             .frame(width: max(5, geo.size.width * fraction))
                     }
                 }

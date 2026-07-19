@@ -170,6 +170,11 @@ final class UsageStore {
 
     // MARK: - History (last 7 days, excluding today)
 
+    // Two records on purpose. The rolling 7-day window feeds the home screen,
+    // which re-reads it on a five-second tick — it must stay small. The archive
+    // is uncapped (a year is ~365 tiny entries) and feeds the long receipt; it
+    // is written here, once a day at midnight, and read only when that screen
+    // opens.
     func archiveToHistory(_ usage: DailyUsage) {
         var history = loadHistory()
         history.removeAll { $0.date == usage.date }
@@ -179,6 +184,35 @@ final class UsageStore {
         }
         guard let data = try? JSONEncoder().encode(history) else { return }
         defaults.set(data, forKey: AppGroupKeys.historyKey)
+        appendToArchive(usage)
+    }
+
+    func appendToArchive(_ usage: DailyUsage) {
+        var archive = loadArchive()
+        // First write on a build that predates the archive: seed it from the
+        // rolling window, so an upgrading tester's week isn't lost.
+        if archive.isEmpty { archive = loadHistory() }
+        archive.removeAll { $0.date == usage.date }
+        archive.append(usage)
+        archive.sort { $0.date < $1.date }
+        guard let data = try? JSONEncoder().encode(archive) else { return }
+        defaults.set(data, forKey: AppGroupKeys.archiveKey)
+    }
+
+    func loadArchive() -> [DailyUsage] {
+        guard
+            let data = defaults.data(forKey: AppGroupKeys.archiveKey),
+            let archive = try? JSONDecoder().decode([DailyUsage].self, from: data)
+        else { return [] }
+        return archive
+    }
+
+    /// Everything ever recorded, today included — the long receipt's input.
+    /// Order matters: LongReceipt collapses duplicate dates last-one-wins, so
+    /// the rolling window supersedes the archive and today's live record
+    /// supersedes both.
+    func loadFullHistory() -> [DailyUsage] {
+        loadArchive() + loadHistory() + [loadTodayUsage()]
     }
 
     func loadHistory() -> [DailyUsage] {

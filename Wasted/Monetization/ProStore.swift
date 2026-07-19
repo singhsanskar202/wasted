@@ -2,16 +2,29 @@ import Combine
 import Foundation
 import StoreKit
 
+// Pro = the mirror's memory, three ways to buy it: monthly, yearly (with the
+// App Store introductory offer as the trial), or once, forever. Any verified
+// entitlement to any of the three unlocks the same single thing.
 @MainActor
-final class LifetimeStore: ObservableObject {
-    static let shared = LifetimeStore()
+final class ProStore: ObservableObject {
+    static let shared = ProStore()
 
-    @Published var product: Product?
+    @Published var monthly: Product?
+    @Published var yearly: Product?
+    @Published var lifetime: Product?
     @Published var isUnlocked: Bool
     @Published var isPurchasing = false
 
     private let store = UsageStore()
     private var updatesTask: Task<Void, Never>?
+
+    private static let productIDs = [
+        AppGroupKeys.monthlyProductID,
+        AppGroupKeys.yearlyProductID,
+        AppGroupKeys.lifetimeProductID,
+    ]
+
+    var isPro: Bool { ProGate.isPro(unlocked: isUnlocked) }
 
     init() {
         isUnlocked = store.isUnlocked()
@@ -27,15 +40,20 @@ final class LifetimeStore: ObservableObject {
     }
 
     func load() async {
-        product = try? await Product.products(for: [AppGroupKeys.lifetimeProductID]).first
+        let products = (try? await Product.products(for: Self.productIDs)) ?? []
+        monthly = products.first { $0.id == AppGroupKeys.monthlyProductID }
+        yearly = products.first { $0.id == AppGroupKeys.yearlyProductID }
+        lifetime = products.first { $0.id == AppGroupKeys.lifetimeProductID }
         await refreshEntitlement()
     }
 
+    // Runs on every load() — which HomeView performs once per launch — so an
+    // expired subscription is caught the next time the app opens, not never.
     func refreshEntitlement() async {
         var unlocked = false
         for await result in Transaction.currentEntitlements {
             if case .verified(let transaction) = result,
-               transaction.productID == AppGroupKeys.lifetimeProductID {
+               Self.productIDs.contains(transaction.productID) {
                 unlocked = true
             }
         }
@@ -43,8 +61,7 @@ final class LifetimeStore: ObservableObject {
         store.setUnlocked(unlocked)
     }
 
-    func purchase() async {
-        guard let product else { return }
+    func purchase(_ product: Product) async {
         isPurchasing = true
         defer { isPurchasing = false }
 
@@ -69,7 +86,7 @@ final class LifetimeStore: ObservableObject {
 
     private func handle(_ result: VerificationResult<Transaction>) async {
         guard case .verified(let transaction) = result,
-              transaction.productID == AppGroupKeys.lifetimeProductID
+              Self.productIDs.contains(transaction.productID)
         else { return }
         isUnlocked = true
         store.setUnlocked(true)

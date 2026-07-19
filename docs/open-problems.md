@@ -127,7 +127,24 @@ files). Shares the WidgetKit pipeline, so worth doing after P1.
 ### E3 — App Store groundwork
 Create the ASC record; **submit the Family Controls distribution entitlement
 request ASAP** (days-to-weeks turnaround — the real launch long pole); Small
-Business Program; $9.99 lifetime IAP; privacy policy + store copy.
+Business Program; privacy policy + store copy.
+**2026-07-18 — monetization is now FREEMIUM** (daily mirror free forever; Pro =
+the long receipt): ASC needs THREE products — `com.sanskar.Wasted.pro.monthly`
+(~$1.99/mo), `com.sanskar.Wasted.pro.yearly` (~$14.99/yr **with a 7-day free
+introductory offer** — the paywall only shows the trial line if StoreKit returns
+one), and the existing `com.sanskar.Wasted.lifetime` (~$29.99). `ProGate`
+replaced TrialClock; `ProStore` replaced LifetimeStore.
+
+### E4 — Island 8h death: layered recovery (SHIPPED in code 2026-07-18)
+iOS kills a Live Activity 8h after creation; only a foreground run can create
+one. Layers now in place: (1) `LiveActivityPolicy.foregroundRotateAfter = 1h` —
+every open rotates and resets the clock (and background updates continue to the
+moment of death, fixing the old 7h freeze); (2) `IslandStatus` — background runs
+flag a dead island, the monitor extension appends "the meter is dark. the count
+isn't." to ONE nudge per death, and the tap that opens the notification is the
+revival; (3) a one-time widget hint on home (the widget has no 8h cap).
+Push-to-start via APNs REJECTED for v1: needs a server and punches a hole in
+"nothing leaves your device". Revisit only if reviews complain.
 
 ---
 

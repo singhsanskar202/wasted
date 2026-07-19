@@ -6,12 +6,11 @@ import WidgetKit
 struct ScreenTimeEntry: TimelineEntry {
     let date: Date
     let totalSeconds: Int
-    let isExpired: Bool
 }
 
 struct WastedTimelineProvider: TimelineProvider {
     func placeholder(in context: Context) -> ScreenTimeEntry {
-        ScreenTimeEntry(date: Date(), totalSeconds: 2820, isExpired: false)
+        ScreenTimeEntry(date: Date(), totalSeconds: 2820)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (ScreenTimeEntry) -> Void) {
@@ -31,21 +30,20 @@ struct WastedTimelineProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<ScreenTimeEntry>) -> Void) {
         let midnight = AppGroupKeys.nextMidnight()
         let current = makeEntry()
-        let fresh = ScreenTimeEntry(date: midnight, totalSeconds: 0, isExpired: current.isExpired)
+        let fresh = ScreenTimeEntry(date: midnight, totalSeconds: 0)
         completion(Timeline(entries: [current, fresh], policy: .after(midnight)))
     }
 
     private func makeEntry() -> ScreenTimeEntry {
         let store = UsageStore()
         let totalSeconds = store.totalSecondsAllApps()
-        let trialState = TrialClock.state(firstLaunch: store.firstLaunchDate(), unlocked: store.isUnlocked())
         // The widget is the one surface the monitor extension CAN drive, so it
         // should be the most accurate thing we ship. Logging what it actually
         // renders is how we find out whether WidgetKit honours our reloads or
         // quietly throttles them — the open question behind "it updates every
-        // 5-8 minutes".
-        EventLog.log(.widget, "timeline built total=\(totalSeconds)s expired=\(trialState == .expired)")
-        return ScreenTimeEntry(date: Date(), totalSeconds: totalSeconds, isExpired: trialState == .expired)
+        // 5-8 minutes". (No entitlement gate: the daily number is free, forever.)
+        EventLog.log(.widget, "timeline built total=\(totalSeconds)s")
+        return ScreenTimeEntry(date: Date(), totalSeconds: totalSeconds)
     }
 }
 
@@ -61,11 +59,11 @@ struct SmallWidgetView: View {
                 .foregroundStyle(Color.ink.opacity(0.35))
                 .tracking(1.5)
 
-            Text(entry.isExpired ? "??m" : AppGroupKeys.formattedDuration(entry.totalSeconds))
+            Text(AppGroupKeys.formattedDuration(entry.totalSeconds))
                 .font(.system(size: 30, weight: .bold, design: .serif))
-                .foregroundStyle(entry.isExpired ? Color.ink.opacity(0.3) : displayColor)
+                .foregroundStyle(displayColor)
 
-            Text(entry.isExpired ? "unlock to see" : "today")
+            Text("today")
                 .font(.system(size: 10, weight: .light))
                 .foregroundStyle(Color.ink.opacity(0.35))
                 .tracking(1.5)
@@ -86,24 +84,17 @@ struct CircularWidgetView: View {
     // unreadable. Stack it instead — the circle is tall enough for two lines,
     // and stacking keeps the digits big.
     var body: some View {
-        Group {
-            if entry.isExpired {
-                Text("??")
-                    .font(.system(size: 15, weight: .bold, design: .serif))
-            } else {
-                let hours = entry.totalSeconds / 3600
-                let minutes = (entry.totalSeconds % 3600) / 60
-                VStack(spacing: -2) {
-                    if hours > 0 {
-                        Text("\(hours)h")
-                            .font(.system(size: 14, weight: .bold, design: .serif))
-                    }
-                    Text("\(minutes)m")
-                        .font(.system(size: hours > 0 ? 13 : 17, weight: .bold, design: .serif))
-                }
-                .minimumScaleFactor(0.8)
+        let hours = entry.totalSeconds / 3600
+        let minutes = (entry.totalSeconds % 3600) / 60
+        VStack(spacing: -2) {
+            if hours > 0 {
+                Text("\(hours)h")
+                    .font(.system(size: 14, weight: .bold, design: .serif))
             }
+            Text("\(minutes)m")
+                .font(.system(size: hours > 0 ? 13 : 17, weight: .bold, design: .serif))
         }
+        .minimumScaleFactor(0.8)
         .containerBackground(.clear, for: .widget)
     }
 }
@@ -116,9 +107,9 @@ struct RectangularWidgetView: View {
             Text("wasted ·")
                 .font(.system(size: 12, weight: .light))
                 .foregroundStyle(.secondary)
-            Text(entry.isExpired ? "??m" : AppGroupKeys.formattedDuration(entry.totalSeconds))
+            Text(AppGroupKeys.formattedDuration(entry.totalSeconds))
                 .font(.system(size: 13, weight: .semibold, design: .serif))
-                .foregroundStyle(entry.totalSeconds >= 3600 && !entry.isExpired ? Color.alarm : .primary)
+                .foregroundStyle(entry.totalSeconds >= 3600 ? Color.alarm : .primary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .containerBackground(.clear, for: .widget)
@@ -159,6 +150,6 @@ private struct WidgetContent: View {
 #Preview(as: .systemSmall) {
     WastedScreenTimeWidget()
 } timeline: {
-    ScreenTimeEntry(date: .now, totalSeconds: 2820, isExpired: false)
-    ScreenTimeEntry(date: .now, totalSeconds: 5040, isExpired: false)
+    ScreenTimeEntry(date: .now, totalSeconds: 2820)
+    ScreenTimeEntry(date: .now, totalSeconds: 5040)
 }

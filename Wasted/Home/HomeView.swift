@@ -32,11 +32,6 @@ struct HomeView: View {
     // The last total actually pushed to ActivityKit, so a five-second poll that
     // finds nothing new doesn't hammer the update budget.
     @State private var lastPushedTotal = -1
-    // The widget is the only surface iOS never kills — the island dies 8h after
-    // creation, notifications get swiped away — and nobody adds it unprompted
-    // (device logs: `timeline built: 0` after weeks). One quiet mention, then
-    // never again: repetition would make it a plea, and the mirror doesn't plead.
-    @AppStorage("widget_hint_dismissed") private var widgetHintDismissed = false
     // The bill, and the week's grid. Both are disk reads, so they're built once
     // per refresh rather than on every one of this view's five-second renders.
     @State private var receipt = DailyReceipt(dateString: "", items: [], totalSeconds: 0, percentOfAwakeDay: 0)
@@ -329,8 +324,6 @@ struct HomeView: View {
                 ActivityScheduler.shared.startMonitoring(selection: newValue)
             }
 
-            widgetHint
-
             // BETA ONLY — remove before the App Store.
             //
             // A tester's log can't be pulled with devicectl (that only reaches a
@@ -352,39 +345,6 @@ struct HomeView: View {
         }
         .padding(.top, 6)
         .padding(.bottom, 26)
-    }
-
-    // THE SURFACE THAT SURVIVES THE NIGHT. iOS kills the island 8 hours after
-    // it's created and nothing extends that; the lock screen widget has no such
-    // clock. Setup instruction, not usage advice — same category as "track
-    // fewer apps" above, and it earns its pixels by being dismissible forever.
-    @ViewBuilder
-    private var widgetHint: some View {
-        if !widgetHintDismissed {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("the island goes dark after 8 hours. ios's rule.")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Color.ink.opacity(0.6))
-
-                Text("opening wasted relights it. the lock screen widget never goes dark — long-press your lock screen, customise, add wasted.")
-                    .font(.system(size: 12, weight: .light))
-                    .foregroundStyle(Color.inkQuiet)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Button {
-                    Haptics.light()
-                    widgetHintDismissed = true
-                } label: {
-                    Text("got it")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Color.ink)
-                        .padding(.top, 2)
-                }
-                .buttonStyle(.plain)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.top, 18)
-        }
     }
 
     // THE MIRROR, ESCALATING. It gets meaner as the number climbs — patient at

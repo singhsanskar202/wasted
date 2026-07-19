@@ -51,17 +51,44 @@ final class LongReceiptTests: XCTestCase {
         XCTAssertEqual(receipt.averageDaySeconds, 3600)
     }
 
+    private func date(_ string: String) -> Date {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        return f.date(from: string)!
+    }
+
     func test_monthsGroup_andReadNewestFirst() {
         let receipt = LongReceipt.build(days: [
             day("2026-06-29", seconds: 3600),
             day("2026-06-30", seconds: 3600),
             day("2026-07-01", seconds: 1800),
-        ])!
+        ], now: date("2026-07-19"))!
         XCTAssertEqual(receipt.months.map(\.id), ["2026-07", "2026-06"])
         XCTAssertEqual(receipt.months[0].seconds, 1800)
         XCTAssertEqual(receipt.months[1].seconds, 7200)
         XCTAssertEqual(receipt.months[1].daysCounted, 2)
-        XCTAssertEqual(receipt.months[1].label, "june 2026")
+        // Same year: no year suffix — the user doesn't date their own months.
+        XCTAssertEqual(receipt.months[1].label, "june")
+        XCTAssertEqual(LongReceipt.monthLabel("2025-06", now: date("2026-07-19")), "june 2025")
+    }
+
+    // Dates are named the way the USER would name them — "yesterday",
+    // "thursday" — never a calendar date they must convert into their own
+    // life. Tiers follow how memory degrades.
+    func test_relatableDay_speaksTheUsersLanguage() {
+        let now = date("2026-07-19")   // a sunday
+        XCTAssertEqual(LongReceipt.relatableDay("2026-07-19", now: now), "today")
+        XCTAssertEqual(LongReceipt.relatableDay("2026-07-18", now: now), "yesterday")
+        XCTAssertEqual(LongReceipt.relatableDay("2026-07-16", now: now), "thursday")
+        XCTAssertEqual(LongReceipt.relatableDay("2026-07-01", now: now), "18 days ago")
+        XCTAssertEqual(LongReceipt.relatableDay("2026-06-01", now: now), "in june")
+        XCTAssertEqual(LongReceipt.relatableDay("2025-06-01", now: now), "june 2025")
+    }
+
+    func test_spanCaption_isLivedTime_notAStartDate() {
+        XCTAssertEqual(LongReceipt.spanCaption(days: 1), "so far today")
+        XCTAssertEqual(LongReceipt.spanCaption(days: 8), "in the last 8 days")
+        XCTAssertEqual(LongReceipt.spanCaption(days: 91), "in about 3 months")
     }
 
     // A projection built on two days is a guess wearing a number.

@@ -41,7 +41,8 @@ struct LongReceipt: Equatable {
     /// collapsed, last one wins — today's live record supersedes any archived
     /// copy). Returns nil when there is literally nothing on file: an empty
     /// long receipt is stated by the view, not faked with zeros.
-    static func build(days: [DailyUsage]) -> LongReceipt? {
+    /// `now` exists so month labels ("july" vs "july 2025") are testable.
+    static func build(days: [DailyUsage], now: Date = Date()) -> LongReceipt? {
         // Collapse duplicates, drop empty days from "worst" but not from the
         // average — a day you didn't touch the phone still divides the total,
         // otherwise the average quietly flatters.
@@ -80,28 +81,65 @@ struct LongReceipt: Equatable {
             previousSevenSeconds: hasTrend ? previousSeven : nil,
             months: monthSeconds
                 .sorted { $0.key > $1.key }
-                .map { MonthEntry(id: $0.key, label: Self.monthLabel($0.key), seconds: $0.value.seconds, daysCounted: $0.value.days) }
+                .map { MonthEntry(id: $0.key, label: Self.monthLabel($0.key, now: now), seconds: $0.value.seconds, daysCounted: $0.value.days) }
         )
     }
 
     // MARK: - Labels
     //
-    // All lowercase — the mirror's register. Fixed to the user's calendar but a
-    // stable format: month names are the one date piece a stranger anywhere
-    // already knows the length of.
+    // All lowercase — the mirror's register. And RELATABLE: "jul 18" makes the
+    // user do calendar arithmetic to find their own life in it. Sanskar's
+    // rule, stated plainly: everything on screen must be in the user's terms.
+    // A date is named the way the user would name it — "yesterday",
+    // "thursday" — and only falls back to the calendar when memory would.
 
-    static func monthLabel(_ id: String) -> String {
+    /// "july" this year, "july 2025" once the year matters.
+    static func monthLabel(_ id: String, now: Date = Date()) -> String {
         guard let date = parse(id + "-01") else { return id }
+        let calendar = Calendar.current
         let f = DateFormatter()
+        f.dateFormat = calendar.component(.year, from: date) == calendar.component(.year, from: now)
+            ? "MMMM" : "MMMM yyyy"
+        return f.string(from: date).lowercased()
+    }
+
+    /// "today" → "yesterday" → "thursday" (this week) → "12 days ago" (this
+    /// month) → "in june" (this year) → "june 2025". The tiers mirror how
+    /// memory actually degrades: weekday while the week is still vivid, a
+    /// distance while the month is, a month name after that.
+    static func relatableDay(_ dateString: String, now: Date = Date()) -> String {
+        guard let date = parse(dateString) else { return dateString }
+        let calendar = Calendar.current
+        let daysAgo = calendar.dateComponents(
+            [.day],
+            from: calendar.startOfDay(for: date),
+            to: calendar.startOfDay(for: now)
+        ).day ?? 0
+
+        if daysAgo <= 0 { return "today" }
+        if daysAgo == 1 { return "yesterday" }
+        if daysAgo <= 6 {
+            let f = DateFormatter()
+            f.dateFormat = "EEEE"
+            return f.string(from: date).lowercased()
+        }
+        if daysAgo <= 30 { return "\(daysAgo) days ago" }
+        let f = DateFormatter()
+        if calendar.component(.year, from: date) == calendar.component(.year, from: now) {
+            f.dateFormat = "MMMM"
+            return "in \(f.string(from: date).lowercased())"
+        }
         f.dateFormat = "MMMM yyyy"
         return f.string(from: date).lowercased()
     }
 
-    static func dayLabel(_ dateString: String) -> String {
-        guard let date = parse(dateString) else { return dateString }
-        let f = DateFormatter()
-        f.dateFormat = "MMM d"
-        return f.string(from: date).lowercased()
+    /// The hero's caption: the span as lived time, not a start date. "since
+    /// jul 12" asks the user to subtract; "in the last 8 days" already did.
+    static func spanCaption(days: Int) -> String {
+        if days <= 1 { return "so far today" }
+        if days <= 31 { return "in the last \(days) days" }
+        let months = max(2, Int((Double(days) / 30.4).rounded()))
+        return "in about \(months) months"
     }
 
     /// "13d 4h" under the same typographic law as the daily number: the biggest

@@ -100,7 +100,9 @@ struct WeekBars: View {
             if let worst = worstDay, total(worst) >= 3600 {
                 callout(
                     tint: Severity.dayRamp(total(worst)),
-                    lead: dayName(worst),
+                    // "today" / "yesterday" / "thursday" — the user's own
+                    // words for the day, never a date to decode.
+                    lead: LongReceipt.relatableDay(worst.date),
                     line: "you lost \(AppGroupKeys.formattedDuration(total(worst))) — the worst of the week."
                 )
             } else {

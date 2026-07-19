@@ -57,10 +57,9 @@ struct HistoryView: View {
                 .lineLimit(1)
                 .padding(.top, 12)
 
-            // "days on file" was a ledger row once — bookkeeping wearing a
-            // number's clothes. It answers no question of the user's; it
-            // belongs in the caption, qualifying the hero.
-            HeroCaption(text: "since \(LongReceipt.dayLabel(receipt.sinceDate)) — \(receipt.daysCounted) days")
+            // "since jul 12 — 7 days" asked the user to do calendar math on
+            // their own life. The span as lived time doesn't.
+            HeroCaption(text: LongReceipt.spanCaption(days: receipt.daysCounted))
                 .padding(.top, 12)
         }
         .frame(maxWidth: .infinity)
@@ -69,7 +68,7 @@ struct HistoryView: View {
         DashedRule().padding(.vertical, 20)
 
         LedgerRow(label: "average day", value: AppGroupKeys.formattedDuration(receipt.averageDaySeconds))
-        LedgerRow(label: "worst day — \(LongReceipt.dayLabel(receipt.worstDayDate))") {
+        LedgerRow(label: "worst day — \(LongReceipt.relatableDay(receipt.worstDayDate))") {
             Text(AppGroupKeys.formattedDuration(receipt.worstDaySeconds))
                 .font(.system(size: 15, weight: .regular))
                 .foregroundStyle(Severity.dayColor(receipt.worstDaySeconds))

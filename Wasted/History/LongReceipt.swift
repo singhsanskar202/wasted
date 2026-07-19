@@ -26,10 +26,16 @@ struct LongReceipt: Equatable {
     /// avg/day × 365. nil until a week of data exists: a projection built on
     /// two days is a guess wearing a number, and the mirror doesn't guess.
     let projectedYearSeconds: Int?
+    /// The trajectory: the last 7 recorded days against the 7 before them.
+    /// nil until 14 days exist — a "trend" with nothing to compare against is
+    /// the same guess the projection rule already bans.
+    let lastSevenSeconds: Int?
+    let previousSevenSeconds: Int?
     /// Newest month first — the receipt reads backwards from now.
     let months: [MonthEntry]
 
     static let minDaysForProjection = 7
+    static let minDaysForTrend = 14
 
     /// `days` is every recorded day INCLUDING today (duplicates by date are
     /// collapsed, last one wins — today's live record supersedes any archived
@@ -58,6 +64,10 @@ struct LongReceipt: Equatable {
         }
 
         let average = total / count
+        let hasTrend = count >= minDaysForTrend
+        let lastSeven = ordered.suffix(7).reduce(0) { $0 + $1.value }
+        let previousSeven = ordered.dropLast(7).suffix(7).reduce(0) { $0 + $1.value }
+
         return LongReceipt(
             allTimeSeconds: total,
             daysCounted: count,
@@ -66,6 +76,8 @@ struct LongReceipt: Equatable {
             worstDaySeconds: worst.value,
             worstDayDate: worst.key,
             projectedYearSeconds: count >= minDaysForProjection ? average * 365 : nil,
+            lastSevenSeconds: hasTrend ? lastSeven : nil,
+            previousSevenSeconds: hasTrend ? previousSeven : nil,
             months: monthSeconds
                 .sorted { $0.key > $1.key }
                 .map { MonthEntry(id: $0.key, label: Self.monthLabel($0.key), seconds: $0.value.seconds, daysCounted: $0.value.days) }
@@ -101,6 +113,19 @@ struct LongReceipt: Equatable {
         let days = total / 86400
         let hours = (total % 86400) / 3600
         return hours == 0 ? "\(days)d" : "\(days)d \(hours)h"
+    }
+
+    /// The week-on-week statement. Facts in both directions, no colour and no
+    /// cheer — a mirror that celebrates a down week is congratulating, which
+    /// this product never does. Under 5% the honest word is "flat".
+    static func trendLine(lastSeven: Int, previousSeven: Int) -> String {
+        guard previousSeven > 0 else {
+            return lastSeven > 0 ? "all of it in the last 7 days." : "a quiet fortnight."
+        }
+        let ratio = Double(lastSeven) / Double(previousSeven)
+        if abs(ratio - 1) < 0.05 { return "flat, week on week." }
+        let pct = Int((abs(ratio - 1) * 100).rounded())
+        return ratio > 1 ? "up \(pct)% on the week before." : "down \(pct)% on the week before."
     }
 
     /// The closing line. Projections under a year of the 365-day rate are days;

@@ -280,18 +280,14 @@ struct HomeView: View {
     // on a lie is worth nothing.
     private var week: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline) {
-                SectionLabel(text: "your week")
-                if let peak = historicalPeak {
-                    Text("worst: \(InsightEngine.hourLabel(peak.startHour))–\(InsightEngine.hourLabel(peak.endHour % 24))")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(Color.alarm)
-                }
-            }
-            .padding(.top, 34)
+            SectionLabel(text: "your week")
+                .padding(.top, 34)
 
-            WeekHeatmap(days: weekDays, daysRequired: 7)
-                .frame(height: 130)
+            // The bars show the shape; the findings under them carry the
+            // insight (worst day, the repeating window). The old corner text
+            // ("worst: 9pm–11pm") moved down there, where it can say how MANY
+            // days the window repeated — the fact that makes it a habit.
+            WeekBars(days: weekDays, daysRequired: 7, peak: historicalPeak)
                 .padding(.top, 22)
 
             // The week asks "bad evening, or bad life?" — this is where the

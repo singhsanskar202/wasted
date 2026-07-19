@@ -86,6 +86,29 @@ final class LongReceiptTests: XCTestCase {
         )
     }
 
+    // A "trend" with nothing to compare against is a guess wearing a number —
+    // same law as the projection.
+    func test_trendNeedsFourteenDays() {
+        let thirteen = (1...13).map { day(String(format: "2026-07-%02d", $0), seconds: 3600) }
+        let short = LongReceipt.build(days: thirteen)!
+        XCTAssertNil(short.lastSevenSeconds)
+        XCTAssertNil(short.previousSevenSeconds)
+
+        let fourteen = (1...14).map { day(String(format: "2026-07-%02d", $0), seconds: $0 <= 7 ? 3600 : 1800) }
+        let full = LongReceipt.build(days: fourteen)!
+        XCTAssertEqual(full.previousSevenSeconds, 7 * 3600)
+        XCTAssertEqual(full.lastSevenSeconds, 7 * 1800)
+    }
+
+    // Facts in both directions, no cheer — and near-equal weeks are "flat",
+    // not a fabricated ±2%.
+    func test_trendLine_statesBothDirectionsAndFlat() {
+        XCTAssertEqual(LongReceipt.trendLine(lastSeven: 5700, previousSeven: 5000), "up 14% on the week before.")
+        XCTAssertEqual(LongReceipt.trendLine(lastSeven: 4000, previousSeven: 5000), "down 20% on the week before.")
+        XCTAssertEqual(LongReceipt.trendLine(lastSeven: 5100, previousSeven: 5000), "flat, week on week.")
+        XCTAssertEqual(LongReceipt.trendLine(lastSeven: 3600, previousSeven: 0), "all of it in the last 7 days.")
+    }
+
     func test_formattedSpan_switchesToDaysPastTwoDays() {
         XCTAssertEqual(LongReceipt.formattedSpan(47 * 3600), "47h")
         XCTAssertEqual(LongReceipt.formattedSpan(50 * 3600), "2d 2h")

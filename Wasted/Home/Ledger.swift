@@ -78,6 +78,15 @@ enum Severity {
     static func dayColor(_ seconds: Int) -> Color {
         seconds >= alarmingDaySeconds ? .alarm : .ink
     }
+
+    // The day-level ramp: quiet ink under an hour, caution to 4h, alarm past a
+    // quarter of the waking day. The island's compact number runs the same
+    // ramp — a day's colour must mean the same thing on every surface.
+    static func dayRamp(_ seconds: Int) -> Color {
+        if seconds >= alarmingDaySeconds { return .alarm }
+        if seconds >= 3600 { return .caution }
+        return .ink.opacity(0.28)
+    }
 }
 
 // MARK: - Hero

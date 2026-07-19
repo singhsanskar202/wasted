@@ -57,7 +57,10 @@ struct HistoryView: View {
                 .lineLimit(1)
                 .padding(.top, 12)
 
-            HeroCaption(text: "since \(LongReceipt.dayLabel(receipt.sinceDate))")
+            // "days on file" was a ledger row once — bookkeeping wearing a
+            // number's clothes. It answers no question of the user's; it
+            // belongs in the caption, qualifying the hero.
+            HeroCaption(text: "since \(LongReceipt.dayLabel(receipt.sinceDate)) — \(receipt.daysCounted) days")
                 .padding(.top, 12)
         }
         .frame(maxWidth: .infinity)
@@ -71,15 +74,30 @@ struct HistoryView: View {
                 .font(.system(size: 15, weight: .regular))
                 .foregroundStyle(Severity.dayColor(receipt.worstDaySeconds))
         }
-        LedgerRow(label: "days on file", value: "\(receipt.daysCounted)")
 
-        DashedRule().padding(.vertical, 20)
+        // THE TRAJECTORY — the fact that makes history actionable without a
+        // word of advice: is it moving? Absent until 14 days exist.
+        if let lastSeven = receipt.lastSevenSeconds, let previousSeven = receipt.previousSevenSeconds {
+            LedgerRow(label: "last 7 days", value: AppGroupKeys.formattedDuration(lastSeven))
+            LedgerRow(label: "the 7 before", value: AppGroupKeys.formattedDuration(previousSeven))
 
-        SectionLabel(text: "by month")
-            .padding(.bottom, 4)
+            MirrorLine(text: LongReceipt.trendLine(lastSeven: lastSeven, previousSeven: previousSeven), size: 14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 2)
+        }
 
-        ForEach(receipt.months) { month in
-            LedgerRow(label: month.label, value: AppGroupKeys.formattedDuration(month.seconds))
+        // A single month under an all-time hero is the same number printed
+        // twice — the exact sin that got itemisation thrown off the home
+        // screen. Months appear when there are months to compare.
+        if receipt.months.count >= 2 {
+            DashedRule().padding(.vertical, 20)
+
+            SectionLabel(text: "by month")
+                .padding(.bottom, 4)
+
+            ForEach(receipt.months) { month in
+                LedgerRow(label: month.label, value: AppGroupKeys.formattedDuration(month.seconds))
+            }
         }
 
         if let projected = receipt.projectedYearSeconds {

@@ -15,23 +15,28 @@ import SwiftUI
 struct HomeView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
-    @StateObject private var lifetimeStore = LifetimeStore.shared
+    @StateObject private var proStore = ProStore.shared
 
     @State private var selection = HomeView.loadSavedSelection()
     @State private var showingPicker = false
     @State private var showingReceipt = false
     @State private var showingPaywall = false
+    @State private var showingHistory = false
     @State private var hourlyData = UsageStore().loadTodayHourly()
     @State private var totalSeconds = UsageStore().totalSecondsAllApps()
     @State private var appeared = false
     @State private var historicalPeak: HistoricalPeak? = nil
-    @State private var trialState: TrialState = .unlocked
     @State private var realityCheck: RealityCheck? = nil
     @State private var trackingFailed = false
     @State private var trackingDegraded = false
     // The last total actually pushed to ActivityKit, so a five-second poll that
     // finds nothing new doesn't hammer the update budget.
     @State private var lastPushedTotal = -1
+    // The widget is the only surface iOS never kills — the island dies 8h after
+    // creation, notifications get swiped away — and nobody adds it unprompted
+    // (device logs: `timeline built: 0` after weeks). One quiet mention, then
+    // never again: repetition would make it a plea, and the mirror doesn't plead.
+    @AppStorage("widget_hint_dismissed") private var widgetHintDismissed = false
     // The bill, and the week's grid. Both are disk reads, so they're built once
     // per refresh rather than on every one of this view's five-second renders.
     @State private var receipt = DailyReceipt(dateString: "", items: [], totalSeconds: 0, percentOfAwakeDay: 0)
@@ -47,11 +52,6 @@ struct HomeView: View {
     private let refreshTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
 
     private let gutter: CGFloat = 28
-
-    private var isExpired: Bool {
-        if case .expired = trialState { return true }
-        return false
-    }
 
     // ONE NUMBER, THEN TWO ANSWERS TO IT.
     //
@@ -71,28 +71,21 @@ struct HomeView: View {
                 trackingHealth
                 voice
 
-                ZStack {
-                    VStack(spacing: 0) {
-                        hero
-                        Rule().padding(.top, 44)
-                        zones
-                        Rule()
-                        week
-                        Rule()
-                        footer
-                        closing
-                    }
-                    .blur(radius: isExpired ? 14 : 0)
-                    .redacted(reason: isExpired ? .placeholder : [])
-                    .allowsHitTesting(!isExpired)
-
-                    if isExpired { expiredOverlay }
+                VStack(spacing: 0) {
+                    hero
+                    Rule().padding(.top, 44)
+                    zones
+                    Rule()
+                    week
+                    Rule()
+                    footer
+                    closing
                 }
             }
             .padding(.horizontal, gutter)
         }
         .background(Color.canvas.ignoresSafeArea())
-        .task { await lifetimeStore.load() }
+        .task { await proStore.load() }
         .onAppear {
             appeared = true
             refresh()
@@ -122,7 +115,12 @@ struct HomeView: View {
                 .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showingPaywall) {
-            PaywallView(store: lifetimeStore)
+            PaywallView(store: proStore)
+        }
+        .sheet(isPresented: $showingHistory) {
+            // Built at presentation, not on the refresh tick: the archive is
+            // the one read that can be a year long.
+            HistoryView(receipt: LongReceipt.build(days: store.loadFullHistory()))
         }
         .sheet(item: $exportedLog) { log in
             ShareLogSheet(url: log.url)
@@ -247,7 +245,7 @@ struct HomeView: View {
             }
 
             QuietButton(title: "today's receipt") {
-                if isExpired { showingPaywall = true } else { showingReceipt = true }
+                showingReceipt = true
             }
             .padding(.top, 32)
         }
@@ -295,6 +293,16 @@ struct HomeView: View {
             WeekHeatmap(days: weekDays, daysRequired: 7)
                 .frame(height: 130)
                 .padding(.top, 22)
+
+            // The week asks "bad evening, or bad life?" — this is where the
+            // answer lives. Free gets the question; Pro gets the answer:
+            // months, the all-time bill, the projection. The one gate in the
+            // app, sitting exactly where the appetite for it is created.
+            QuietButton(title: "the long receipt") {
+                if proStore.isPro { showingHistory = true } else { showingPaywall = true }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 26)
         }
         .padding(.bottom, 26)
     }
@@ -311,12 +319,7 @@ struct HomeView: View {
                 ActivityScheduler.shared.startMonitoring(selection: newValue)
             }
 
-            if let trialDayLine {
-                Text(trialDayLine)
-                    .font(.system(size: 12, weight: .light))
-                    .foregroundStyle(Color.ink.opacity(0.3))
-                    .padding(.top, 6)
-            }
+            widgetHint
 
             // BETA ONLY — remove before the App Store.
             //
@@ -341,6 +344,39 @@ struct HomeView: View {
         .padding(.bottom, 26)
     }
 
+    // THE SURFACE THAT SURVIVES THE NIGHT. iOS kills the island 8 hours after
+    // it's created and nothing extends that; the lock screen widget has no such
+    // clock. Setup instruction, not usage advice — same category as "track
+    // fewer apps" above, and it earns its pixels by being dismissible forever.
+    @ViewBuilder
+    private var widgetHint: some View {
+        if !widgetHintDismissed {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("the island goes dark after 8 hours. ios's rule.")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color.ink.opacity(0.6))
+
+                Text("opening wasted relights it. the lock screen widget never goes dark — long-press your lock screen, customise, add wasted.")
+                    .font(.system(size: 12, weight: .light))
+                    .foregroundStyle(Color.inkQuiet)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Button {
+                    Haptics.light()
+                    widgetHintDismissed = true
+                } label: {
+                    Text("got it")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Color.ink)
+                        .padding(.top, 2)
+                }
+                .buttonStyle(.plain)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 18)
+        }
+    }
+
     // THE MIRROR, ESCALATING. It gets meaner as the number climbs — patient at
     // twenty minutes, brutal at four hours — and it's the last thing you read
     // before you put the phone down.
@@ -360,31 +396,6 @@ struct HomeView: View {
             .padding(.top, 22)
             .padding(.bottom, 64)
             .animation(.easeInOut(duration: 0.5), value: QuoteBank.Temper(seconds: totalSeconds))
-    }
-
-    private var expiredOverlay: some View {
-        VStack(spacing: 20) {
-            Text("still counting.\nyou just can't see it.")
-                .font(.system(size: 21, weight: .regular, design: .serif))
-                .italic()
-                .foregroundStyle(Color.ink)
-                .multilineTextAlignment(.center)
-
-            Button {
-                Haptics.light()
-                showingPaywall = true
-            } label: {
-                Text("unlock forever — \(unlockPrice)")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(Color.canvas)
-                    .padding(.vertical, 15)
-                    .padding(.horizontal, 30)
-                    .background(Color.ink)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(24)
     }
 
     // MARK: - Data
@@ -426,7 +437,6 @@ struct HomeView: View {
         assign(store.defaults.bool(forKey: AppGroupKeys.trackingFailedKey), to: &trackingFailed)
         assign(store.defaults.bool(forKey: AppGroupKeys.trackingDegradedKey), to: &trackingDegraded)
 
-        updateTrialState()
         updateRealityCheck(history: history)
         maybeAutoShowReceipt()
         syncIsland()
@@ -461,17 +471,9 @@ struct HomeView: View {
     // most once a minute, so this is nowhere near ActivityKit's update budget,
     // whereas firing on every five-second tick would be.
     private func syncIsland() {
-        guard !isExpired, totalSeconds != lastPushedTotal else { return }
+        guard totalSeconds != lastPushedTotal else { return }
         lastPushedTotal = totalSeconds
         Task { await LiveActivityCoordinator.shared.sync(totalSeconds: totalSeconds, canCreate: true) }
-    }
-
-    private func updateTrialState() {
-        #if targetEnvironment(simulator)
-        assign(.unlocked, to: &trialState)
-        #else
-        assign(TrialClock.state(firstLaunch: store.firstLaunchDate(), unlocked: lifetimeStore.isUnlocked), to: &trialState)
-        #endif
     }
 
     private func updateRealityCheck(history: [DailyUsage]) {
@@ -492,7 +494,7 @@ struct HomeView: View {
     }
 
     private func maybeAutoShowReceipt() {
-        guard !isExpired, realityCheck == nil else { return }
+        guard realityCheck == nil else { return }
         let hour = Calendar.current.component(.hour, from: Date())
         guard hour >= AppGroupKeys.receiptHour, totalSeconds > 0 else { return }
         let today = DailyUsage.todayString()
@@ -501,18 +503,6 @@ struct HomeView: View {
         showingReceipt = true
     }
 
-
-    // MARK: - Trial
-
-    private var trialDayLine: String? {
-        guard case .trial(let daysLeft) = trialState else { return nil }
-        let dayNumber = TrialClock.trialDays - daysLeft + 1
-        return "day \(dayNumber) of \(TrialClock.trialDays) — then it's \(unlockPrice) once."
-    }
-
-    private var unlockPrice: String {
-        lifetimeStore.product?.displayPrice ?? "$9.99"
-    }
 
     // MARK: - Persistence
 

@@ -55,6 +55,14 @@ enum AppGroupKeys {
     static let liveTotalKey = "live_total_seconds"
     static let liveTotalDateKey = "live_total_date"
 
+    // The island's death is invisible from every process that could mention it,
+    // and mentionable from the one process that can't see it. These two keys
+    // bridge that: the main app's background runs write the day the island went
+    // dark, the monitor extension reads it and captions ONE nudge with the
+    // fact, and a foreground revival clears both. See IslandStatus.
+    static let islandDownDayKey = "island_down_day"
+    static let islandDownAnnouncedDayKey = "island_down_announced_day"
+
     // MARK: - Day boundary
     //
     // Nothing we control runs at midnight. The monitor extension's
@@ -87,10 +95,18 @@ enum AppGroupKeys {
     static let awakeDayHours = 16
     static let receiptHour = 21
 
-    // Trial + purchase
+    // Purchase. `lifetimeUnlockedKey` now means "Pro is unlocked by ANY
+    // product" — the key string is unchanged so a beta lifetime purchase made
+    // under the old name stays unlocked.
     static let firstLaunchKey = "first_launch_at"
     static let lifetimeUnlockedKey = "lifetime_unlocked"
     static let lifetimeProductID = "com.sanskar.Wasted.lifetime"
+    static let monthlyProductID = "com.sanskar.Wasted.pro.monthly"
+    static let yearlyProductID = "com.sanskar.Wasted.pro.yearly"
+    // The uncapped day-by-day record behind the long receipt (Pro). Written
+    // once at midnight, read only when the history screen opens — NEVER on the
+    // home screen's five-second tick, which stays on the 7-day rolling window.
+    static let archiveKey = "usage_archive"
     static let lastReceiptAutoShowKey = "last_receipt_auto_show"
     static let dailyGuessKey = "daily_guess_seconds"
     static let realityCheckShownKey = "reality_check_shown"

@@ -102,6 +102,12 @@ enum NudgeCopy {
         Line(id: 25, text: "this is your evening now."),
     ]
 
+    // Appended below a nudge's line when the Live Activity has died and only a
+    // foreground open can revive it (IslandStatus). Stated as fact — true
+    // whether the island died at the 8h cap or was never lit today — and never
+    // as an instruction: the notification's tap already does the reviving.
+    static let meterDarkLine = "the meter is dark. the count isn't."
+
     // Never sends the same line twice in a day while an unused one exists —
     // a nudge that repeats stops being read, and one that stops being read
     // stops working. `used` is the day's set from UsageStore, cleared at

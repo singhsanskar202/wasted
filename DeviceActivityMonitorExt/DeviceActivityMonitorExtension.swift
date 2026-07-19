@@ -68,7 +68,6 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         let appName = resolveDisplayName(for: appIndex)
         EventLog.log(.monitor, "per-app threshold \(event.rawValue) app=\(appIndex) min=\(minutes)")
 
-        // Recording never stops — trial gating only affects what's surfaced.
         // Hourly heatmap attribution deliberately NOT here: the combined
         // "total:N" series covers the same usage at minute fidelity, and
         // adding both would double count.
@@ -78,31 +77,36 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             store.addSeconds(delta, for: appIndex)
         }
 
-        let trialState = TrialClock.state(firstLaunch: store.firstLaunchDate(), unlocked: store.isUnlocked())
-        if trialState != .expired {
-            if NudgeGate.shouldNudge(minutes: minutes, last: store.lastNudge(for: appIndex)) {
-                // Pick a line today hasn't spent yet, then burn it — a nudge the
-                // user has already read is a nudge they scroll past.
-                let line = NudgeCopy.next(minutes: minutes, used: store.usedNudgeLines())
-                notificationScheduler.scheduleNudge(appName: appName, minutes: minutes, body: line.text)
-                store.markNudgeLine(line.id)
-                store.recordNudge(minutes: minutes, for: appIndex)
-                EventLog.log(.nudge, "SENT at \(minutes)m app=\(appIndex) line=\(line.id) \"\(line.text)\"")
-            } else {
-                // Logging the SUPPRESSED case matters as much as the sent one:
-                // "why did I not get a nudge?" is unanswerable without it, and
-                // the gate has three separate reasons to stay quiet.
-                EventLog.log(.nudge, "suppressed at \(minutes)m app=\(appIndex) (last=\(store.lastNudge(for: appIndex)?.minutes.description ?? "none"))")
+        // No entitlement gate here: the daily mirror — nudges, receipt, island,
+        // badge — is free forever. Pro gates only the long receipt, in the app.
+        if NudgeGate.shouldNudge(minutes: minutes, last: store.lastNudge(for: appIndex)) {
+            // Pick a line today hasn't spent yet, then burn it — a nudge the
+            // user has already read is a nudge they scroll past.
+            let line = NudgeCopy.next(minutes: minutes, used: store.usedNudgeLines())
+            // If the island died and nothing but a foreground open can fix
+            // it, this nudge — one the user was getting anyway — carries the
+            // fact, once. Its tap is the revival.
+            var body = line.text
+            if IslandStatus.takeAnnouncement(today: DailyUsage.todayString()) {
+                body += "\n" + NudgeCopy.meterDarkLine
+                EventLog.log(.island, "meter-dark line attached to \(minutes)m nudge")
             }
-
-            receiptScheduler.refresh(usage: store.loadTodayUsage(), displayNames: allDisplayNames())
-            // Yesterday's bill, delivered tomorrow morning while the day can still
-            // be changed. A local notification carries STATIC content, so the only
-            // way its number can be right is to keep replacing it with a fresher one.
-            morningReport.refresh(store: store)
+            notificationScheduler.scheduleNudge(appName: appName, minutes: minutes, body: body)
+            store.markNudgeLine(line.id)
+            store.recordNudge(minutes: minutes, for: appIndex)
+            EventLog.log(.nudge, "SENT at \(minutes)m app=\(appIndex) line=\(line.id) \"\(line.text)\"")
         } else {
-            EventLog.log(.trial, "EXPIRED — recording continues, nudges/island suppressed")
+            // Logging the SUPPRESSED case matters as much as the sent one:
+            // "why did I not get a nudge?" is unanswerable without it, and
+            // the gate has three separate reasons to stay quiet.
+            EventLog.log(.nudge, "suppressed at \(minutes)m app=\(appIndex) (last=\(store.lastNudge(for: appIndex)?.minutes.description ?? "none"))")
         }
+
+        receiptScheduler.refresh(usage: store.loadTodayUsage(), displayNames: allDisplayNames())
+        // Yesterday's bill, delivered tomorrow morning while the day can still
+        // be changed. A local notification carries STATIC content, so the only
+        // way its number can be right is to keep replacing it with a fresher one.
+        morningReport.refresh(store: store)
 
         let total = store.totalSecondsAllApps()
         Task {
@@ -117,13 +121,11 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         WidgetCenter.shared.reloadAllTimelines()
         EventLog.log(.widget, "reload requested from extension total=\(total)s")
 
-        if trialState != .expired {
-            // The island shows the grand total across all tracked apps, not
-            // this one app's slice. A no-op in practice — ActivityKit is
-            // unreachable from this process — so it stays LAST, after the work
-            // that does land (nudge, receipt, badge, widget).
-            liveActivityManager.updateExistingAndWait(totalSeconds: total)
-        }
+        // The island shows the grand total across all tracked apps, not
+        // this one app's slice. A no-op in practice — ActivityKit is
+        // unreachable from this process — so it stays LAST, after the work
+        // that does land (nudge, receipt, badge, widget).
+        liveActivityManager.updateExistingAndWait(totalSeconds: total)
     }
 
     // The combined series is the island's heartbeat: every minute of usage
@@ -153,11 +155,8 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         }
         WidgetCenter.shared.reloadAllTimelines()
 
-        let trialState = TrialClock.state(firstLaunch: store.firstLaunchDate(), unlocked: store.isUnlocked())
-        if trialState != .expired {
-            // Blocking and last, same as the per-app path.
-            liveActivityManager.updateExistingAndWait(totalSeconds: total)
-        }
+        // Blocking and last, same as the per-app path.
+        liveActivityManager.updateExistingAndWait(totalSeconds: total)
     }
 
     // MARK: - Private

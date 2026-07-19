@@ -10,7 +10,8 @@ struct WastedApp: App {
     // reset that clock — this comment used to claim it did, which is what
     // produced the "one activity, all day" design and the vanishing island.
     // The only way to persist is to end the old activity and request a new one
-    // (LiveActivityPolicy.rotateAfter), and only THIS process can do either.
+    // (LiveActivityPolicy.foregroundRotateAfter), and only THIS process can do
+    // either.
     // So every run of the app — foreground or this background task — is a
     // chance to rotate before the guillotine. iOS grants these at its own
     // discretion, so it's a safety net, not a cure: an app left unopened for
@@ -32,8 +33,8 @@ struct WastedApp: App {
         EventLog.logSession()
         // A build that shipped with the paywall off should be obvious in the first
         // lines of its own log — not discovered by a user who is never asked to pay.
-        if !TrialClock.paywallEnabled {
-            EventLog.error(.trial, "PAYWALL DISABLED — beta build. TrialClock.paywallEnabled must be true to ship.")
+        if !ProGate.paywallEnabled {
+            EventLog.error(.trial, "PAYWALL DISABLED — beta build. ProGate.paywallEnabled must be true to ship.")
         }
     }
 
@@ -83,8 +84,7 @@ struct WastedApp: App {
                     store.setCombinedSecondsToday(total)
                 }
                 #endif
-                let trial = TrialClock.state(firstLaunch: store.firstLaunchDate(), unlocked: store.isUnlocked())
-                EventLog.log(.app, "FOREGROUND total=\(store.totalSecondsAllApps())s trial=\(trial)")
+                EventLog.log(.app, "FOREGROUND total=\(store.totalSecondsAllApps())s pro=\(ProGate.isPro(unlocked: store.isUnlocked()))")
 
                 let displayNames = loadDisplayNames()
                 ReceiptScheduler().refresh(
@@ -173,9 +173,6 @@ struct WastedApp: App {
     /// refuses Activity.request() from the background (two days of device logs:
     /// every failure was a background run, every success a foreground one).
     private static func refreshLiveActivity(store: UsageStore, canCreate: Bool) async {
-        let trialState = TrialClock.state(firstLaunch: store.firstLaunchDate(), unlocked: store.isUnlocked())
-        guard trialState != .expired else { return }
-
         // This is the ONLY process that can write to the island, so every run of
         // it — foreground or BG refresh — is the island's chance to catch up to
         // the truth the extension has been recording all along.

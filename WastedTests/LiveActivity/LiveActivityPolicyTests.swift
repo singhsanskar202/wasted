@@ -20,16 +20,17 @@ final class LiveActivityPolicyTests: XCTestCase {
         )
     }
 
+    private func decide(_ existing: [ActivitySnapshot], canCreate: Bool) -> LiveActivityDecision {
+        LiveActivityPolicy.decide(existing: existing, today: today, now: now, canCreate: canCreate)
+    }
+
     func test_noActivity_createsOne() {
-        XCTAssertEqual(LiveActivityPolicy.decide(existing: [], today: today, now: now), .replace)
+        XCTAssertEqual(decide([], canCreate: true), .replace)
     }
 
     func test_freshActivityForToday_isUpdatedInPlace() {
-        let live = snapshot(id: "live", ageHours: 2)
-        XCTAssertEqual(
-            LiveActivityPolicy.decide(existing: [live], today: today, now: now),
-            .update(id: "live")
-        )
+        let live = snapshot(id: "live", ageHours: 0.5)
+        XCTAssertEqual(decide([live], canCreate: true), .update(id: "live"))
     }
 
     // THE BUG THAT MADE THE ISLAND STAY DEAD.
@@ -42,50 +43,104 @@ final class LiveActivityPolicyTests: XCTestCase {
     // the user reopened the app.
     func test_endedActivity_isReplaced_notUpdated() {
         let corpse = snapshot(id: "corpse", isUpdatable: false, ageHours: 9)
-        XCTAssertEqual(
-            LiveActivityPolicy.decide(existing: [corpse], today: today, now: now),
-            .replace
-        )
+        XCTAssertEqual(decide([corpse], canCreate: true), .replace)
     }
 
-    // We cannot extend past iOS's 8h cap — no API does — so we rotate before it:
-    // end the old activity, request a fresh one, get a clean 8h window.
-    func test_activityNearingTheEightHourCap_isRotatedEarly() {
-        let old = snapshot(id: "old", ageHours: 7.5)
-        XCTAssertEqual(
-            LiveActivityPolicy.decide(existing: [old], today: today, now: now),
-            .replace
-        )
+    // EVERY OPEN RESETS THE 8H CLOCK. The old policy rotated only at 7h, so an
+    // open at hour 6 bought nothing and the island still died at hour 8 — the
+    // "it dies unless I open the app at exactly the right time" complaint. Now
+    // any foreground pass past the threshold trades the old activity for a
+    // fresh eight-hour window.
+    func test_foreground_rotatesAnythingOlderThanTheThreshold() {
+        let aged = snapshot(id: "aged", ageHours: 1.5)
+        XCTAssertEqual(decide([aged], canCreate: true), .replace)
     }
 
-    func test_rotationHappensWithMarginBeforeTheCap() {
-        // The margin is the point: an activity replaced at 7h59m would be dead
-        // before the user ever saw it.
-        XCTAssertLessThan(LiveActivityPolicy.rotateAfter, 8 * 3600)
+    func test_foregroundRotationThreshold_leavesAFreshActivityAlone() {
+        // Rotation is end + request — a flicker. It must not happen on every
+        // five-second HomeView tick, only once the clock is actually worth
+        // resetting.
+        XCTAssertGreaterThanOrEqual(LiveActivityPolicy.foregroundRotateAfter, 1800)
+        // And it must be far enough from 8h that rotating is always a win.
+        XCTAssertLessThan(LiveActivityPolicy.foregroundRotateAfter, 7 * 3600)
+    }
 
-        let justInside = snapshot(id: "ok", ageHours: 6.9)
-        XCTAssertEqual(
-            LiveActivityPolicy.decide(existing: [justInside], today: today, now: now),
-            .update(id: "ok")
-        )
+    // BACKGROUND RUNS UPDATE UNTIL THE MOMENT OF DEATH. The old policy's 7h age
+    // cutoff made a background refresh treat a live 7h30m activity as unusable
+    // and freeze it a full hour before iOS killed it. Age only matters when a
+    // fresh window can actually be bought — i.e. in the foreground.
+    func test_background_updatesAnAgedActivityInsteadOfRotating() {
+        let aged = snapshot(id: "aged", ageHours: 7.9)
+        XCTAssertEqual(decide([aged], canCreate: false), .update(id: "aged"))
+    }
+
+    func test_background_withOnlyACorpse_asksToReplace() {
+        // The caller guards this with canCreate and marks the island down —
+        // the policy just reports the truth: nothing here is updatable.
+        let corpse = snapshot(id: "corpse", isUpdatable: false, ageHours: 9)
+        XCTAssertEqual(decide([corpse], canCreate: false), .replace)
     }
 
     // Midnight rollover: the day boundary runs in the monitor extension, which
     // cannot reach ActivityKit at all, so yesterday's activity survives the night.
     func test_yesterdaysActivity_isReplaced() {
         let yesterday = snapshot(id: "old-day", day: "2026-07-11", ageHours: 3)
-        XCTAssertEqual(
-            LiveActivityPolicy.decide(existing: [yesterday], today: today, now: now),
-            .replace
-        )
+        XCTAssertEqual(decide([yesterday], canCreate: true), .replace)
     }
 
     func test_picksTheUsableActivity_whenACorpseIsListedFirst() {
         let corpse = snapshot(id: "corpse", isUpdatable: false, ageHours: 9)
-        let live = snapshot(id: "live", ageHours: 1)
-        XCTAssertEqual(
-            LiveActivityPolicy.decide(existing: [corpse, live], today: today, now: now),
-            .update(id: "live")
-        )
+        let live = snapshot(id: "live", ageHours: 0.2)
+        XCTAssertEqual(decide([corpse, live], canCreate: true), .update(id: "live"))
+    }
+}
+
+// The dead island's handoff to the monitor extension: the app's background runs
+// flag the death, exactly ONE nudge carries the fact, and a revival clears the
+// slate so a second death the same day earns its own single mention.
+final class IslandStatusTests: XCTestCase {
+
+    private var defaults: UserDefaults!
+    private let suite = "island-status-tests"
+    private let today = "2026-07-12"
+
+    override func setUp() {
+        super.setUp()
+        defaults = UserDefaults(suiteName: suite)
+        defaults.removePersistentDomain(forName: suite)
+    }
+
+    override func tearDown() {
+        defaults.removePersistentDomain(forName: suite)
+        super.tearDown()
+    }
+
+    func test_noDeathRecorded_announcesNothing() {
+        XCTAssertFalse(IslandStatus.takeAnnouncement(today: today, defaults: defaults))
+    }
+
+    func test_death_isAnnouncedExactlyOnce() {
+        IslandStatus.markDown(today: today, defaults: defaults)
+        XCTAssertTrue(IslandStatus.takeAnnouncement(today: today, defaults: defaults))
+        // The island is still down, but a repeated line stops being read.
+        XCTAssertFalse(IslandStatus.takeAnnouncement(today: today, defaults: defaults))
+    }
+
+    func test_yesterdaysDeath_doesNotCaptionTodaysNudges() {
+        IslandStatus.markDown(today: "2026-07-11", defaults: defaults)
+        XCTAssertFalse(IslandStatus.takeAnnouncement(today: today, defaults: defaults))
+    }
+
+    func test_revival_clearsTheSlate_soASecondDeathAnnouncesAgain() {
+        IslandStatus.markDown(today: today, defaults: defaults)
+        XCTAssertTrue(IslandStatus.takeAnnouncement(today: today, defaults: defaults))
+
+        IslandStatus.markAlive(defaults: defaults)
+        // Alive: nothing to say.
+        XCTAssertFalse(IslandStatus.takeAnnouncement(today: today, defaults: defaults))
+
+        // Dies again the same day — one more mention, not silence.
+        IslandStatus.markDown(today: today, defaults: defaults)
+        XCTAssertTrue(IslandStatus.takeAnnouncement(today: today, defaults: defaults))
     }
 }

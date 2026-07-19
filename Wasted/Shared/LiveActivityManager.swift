@@ -45,22 +45,33 @@ enum LiveActivityDecision: Equatable {
 }
 
 enum LiveActivityPolicy {
-    // Rotate an hour before iOS's 8h guillotine. The margin matters: the app may
-    // not run again for a while, and an activity replaced at 7h59m would be dead
-    // before it was ever seen.
-    static let rotateAfter: TimeInterval = 7 * 3600
+    // Every FOREGROUND pass where the activity has aged past this rotates it —
+    // end + fresh request — so each open of the app restarts the 8h clock
+    // instead of inheriting whatever was left of the morning's window. The old
+    // policy rotated only at 7h, which meant an open at hour 6 bought nothing
+    // and the island still died at hour 8. An hour is the balance point: often
+    // enough that the island survives 8h past nearly every open, rare enough
+    // that the end+request flicker isn't on every launch.
+    static let foregroundRotateAfter: TimeInterval = 3600
 
     static func decide(
         existing: [ActivitySnapshot],
         today: String,
-        now: Date = Date()
+        now: Date = Date(),
+        canCreate: Bool
     ) -> LiveActivityDecision {
         let usable = existing.first {
-            $0.day == today                                        // not yesterday's
-                && $0.isUpdatable                                  // not a corpse
-                && now.timeIntervalSince($0.startedAt) < rotateAfter  // not about to be culled
+            $0.day == today            // not yesterday's
+                && $0.isUpdatable      // not a corpse
         }
         guard let usable else { return .replace }
+        // No age cutoff for updates: the old `< 7h` filter made BACKGROUND runs
+        // treat a live 7h activity as unusable, so updates stopped a full hour
+        // before iOS actually killed it. An activity is worth updating until
+        // the moment it dies; only creation decides whether dying matters.
+        if canCreate, now.timeIntervalSince(usable.startedAt) >= foregroundRotateAfter {
+            return .replace
+        }
         return .update(id: usable.id)
     }
 }
@@ -109,12 +120,18 @@ final class LiveActivityManager {
 
         let decision = LiveActivityPolicy.decide(
             existing: activities.map(Self.snapshot),
-            today: today
+            today: today,
+            canCreate: canCreate
         )
 
-        // Never end an activity we cannot replace.
+        // Never end an activity we cannot replace. Reaching here from the
+        // background means the island is DARK — dead or never started today —
+        // and this process can't relight it. Record that for the monitor
+        // extension, which is the only thing guaranteed to speak to the user
+        // before they next open the app.
         if case .replace = decision, !canCreate {
-            EventLog.log(.island, "background: cannot create (foreground-only) — leaving \(activities.count) activity(s) untouched")
+            IslandStatus.markDown(today: today)
+            EventLog.log(.island, "background: island DOWN, cannot create (foreground-only) — flagged for nudge, \(activities.count) activity(s) untouched")
             return
         }
 
@@ -127,6 +144,7 @@ final class LiveActivityManager {
             }
             guard let target = activities.first(where: { $0.id == id }) else { return }
             await target.update(content)
+            IslandStatus.markAlive()
             EventLog.log(.island, "updated id=\(id) total=\(totalSeconds)s")
 
         case .replace:
@@ -150,10 +168,13 @@ final class LiveActivityManager {
                 pushType: nil
             )
             if let activity {
+                IslandStatus.markAlive()
                 EventLog.log(.island, "CREATED id=\(activity.id) total=\(totalSeconds)s")
             } else {
                 // request() throws if the user disabled Live Activities, or if
-                // iOS is rate-limiting. Silent until now.
+                // iOS is rate-limiting. Deliberately NOT marked down: the first
+                // is a choice the nudge shouldn't nag about, the second is
+                // transient.
                 EventLog.error(.island, "Activity.request() FAILED — no island. enabled=\(ActivityAuthorizationInfo().areActivitiesEnabled)")
             }
         }
@@ -237,4 +258,41 @@ final class LiveActivityManager {
     }
 
     private static func dayString() -> String { AppGroupKeys.dayString() }
+}
+
+// THE DEAD ISLAND'S ONLY VOICE.
+//
+// Only the main app can revive a dead island, and it may not run for hours. The
+// monitor extension, meanwhile, fires on every threshold — it just can't touch
+// ActivityKit. This is the handoff between them: the app's background runs
+// record that the island is dark, and the extension states that fact ONCE,
+// inside a nudge the user was getting anyway. The tap that opens the app is the
+// tap that relights the island — no extra notification ever spends the user's
+// attention on our plumbing.
+//
+// Day-scoped on both sides: a flag from yesterday must not caption today's
+// nudges, and midnight resets the island's view on its own (staleDate).
+enum IslandStatus {
+    /// Background run found nothing updatable — the island is dark and this
+    /// process can't fix it.
+    static func markDown(today: String, defaults: UserDefaults = .wastedShared) {
+        defaults.set(today, forKey: AppGroupKeys.islandDownDayKey)
+    }
+
+    /// Any successful create or update. Clears the announcement too, so a
+    /// SECOND death on the same day earns its own single mention.
+    static func markAlive(defaults: UserDefaults = .wastedShared) {
+        defaults.removeObject(forKey: AppGroupKeys.islandDownDayKey)
+        defaults.removeObject(forKey: AppGroupKeys.islandDownAnnouncedDayKey)
+    }
+
+    /// True exactly once per death: a repeated line stops being read, and a
+    /// line that stops being read stops working (same law as the nudge bank).
+    static func takeAnnouncement(today: String, defaults: UserDefaults = .wastedShared) -> Bool {
+        guard defaults.string(forKey: AppGroupKeys.islandDownDayKey) == today,
+              defaults.string(forKey: AppGroupKeys.islandDownAnnouncedDayKey) != today
+        else { return false }
+        defaults.set(today, forKey: AppGroupKeys.islandDownAnnouncedDayKey)
+        return true
+    }
 }

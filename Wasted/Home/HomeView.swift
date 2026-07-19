@@ -278,10 +278,24 @@ struct HomeView: View {
     // seven days — but the data under the blur is REAL, and it fills in a little
     // more each day. The old screen faked this with random bars; curiosity built
     // on a lie is worth nothing.
+    // The week's total, only once the week is real (7 days). Apple's Screen
+    // Time leads with a chart and a "Daily Average"; Wasted leads with the
+    // BILL — the number Settings never states.
+    private var weekTotalSeconds: Int {
+        weekDays.reduce(0) { $0 + $1.seconds.values.reduce(0, +) }
+    }
+
     private var week: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SectionLabel(text: "your week")
-                .padding(.top, 34)
+            HStack(alignment: .firstTextBaseline) {
+                SectionLabel(text: "your week")
+                if weekDays.count >= 7 {
+                    Text(AppGroupKeys.formattedDuration(weekTotalSeconds))
+                        .font(.system(size: 17, weight: .semibold, design: .serif))
+                        .foregroundStyle(weekTotalSeconds >= Severity.alarmingDaySeconds * 7 ? Color.alarm : Color.ink)
+                }
+            }
+            .padding(.top, 34)
 
             // The bars show the shape; the findings under them carry the
             // insight (worst day, the repeating window). The old corner text

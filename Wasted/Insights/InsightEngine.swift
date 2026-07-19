@@ -29,6 +29,15 @@ struct HistoricalPeak: Equatable {
     let endHour: Int     // exclusive
     let daysActive: Int  // history days with usage inside the window
     let daysTotal: Int
+    /// Total seconds spent inside the window across the whole history — what
+    /// the habit bell divides by daysActive to say "about 41m a time".
+    let windowSeconds: Int
+
+    /// "9pm–11pm" — the window's real span. NOT timeRangeLabel, whose
+    /// last-included-hour convention would print this window as "9pm–10pm".
+    var label: String {
+        "\(InsightEngine.hourLabel(startHour))–\(InsightEngine.hourLabel(endHour % 24))"
+    }
 }
 
 struct InsightResult {
@@ -198,7 +207,8 @@ enum InsightEngine {
             startHour: bestStart,
             endHour: bestStart + 2,
             daysActive: daysActive,
-            daysTotal: history.count
+            daysTotal: history.count,
+            windowSeconds: bestTotal
         )
     }
 

@@ -92,6 +92,13 @@ struct WastedApp: App {
                     displayNames: displayNames
                 )
                 MorningReport().refresh(store: store)
+                // The proactive mirror: re-planned on every run, like the
+                // morning report — static notification content stays true
+                // only by replacement.
+                HabitBell.refresh(
+                    peak: InsightEngine.historicalPeak(history: store.loadHistory()),
+                    isPro: ProGate.isPro(unlocked: store.isUnlocked())
+                )
                 Task { await Self.refreshLiveActivity(store: store, canCreate: true) }
             case .background:
                 EventLog.log(.app, "BACKGROUND — scheduling refresh + nightly rotation")
@@ -161,7 +168,12 @@ struct WastedApp: App {
     private func handleAppRefresh() async {
         scheduleAppRefresh()               // chain the next one
         Self.scheduleNightlyRotation()
-        await Self.refreshLiveActivity(store: UsageStore(), canCreate: false)
+        let store = UsageStore()
+        HabitBell.refresh(
+            peak: InsightEngine.historicalPeak(history: store.loadHistory()),
+            isPro: ProGate.isPro(unlocked: store.isUnlocked())
+        )
+        await Self.refreshLiveActivity(store: store, canCreate: false)
     }
 
     // Activity.request() only succeeds from the main app process — the

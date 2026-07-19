@@ -21,7 +21,11 @@ struct WeekBars: View {
     let daysRequired: Int
     let peak: HistoricalPeak?       // the recurring window across history
 
-    private let chartHeight: CGFloat = 96
+    // Half the danger-zones strip on purpose. At full height seven day-bars
+    // read as Apple's Screen Time chart — Settings' territory, and a paid
+    // screen must not look like a free one. Small, the bars are texture under
+    // the section's bill; the SENTENCES are the feature Apple doesn't have.
+    private let chartHeight: CGFloat = 56
 
     private var isLocked: Bool { days.count < daysRequired }
     private var daysToGo: Int { max(0, daysRequired - days.count) }
@@ -111,7 +115,7 @@ struct WeekBars: View {
             if let peak, peak.daysActive >= 2 {
                 callout(
                     tint: .alarm,
-                    lead: InsightEngine.timeRangeLabel(start: peak.startHour, end: peak.endHour),
+                    lead: peak.label,
                     line: "there \(peak.daysActive) of the last \(peak.daysTotal) days."
                 )
             }

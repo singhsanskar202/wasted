@@ -20,8 +20,8 @@ final class LiveActivityPolicyTests: XCTestCase {
         )
     }
 
-    private func decide(_ existing: [ActivitySnapshot], canCreate: Bool) -> LiveActivityDecision {
-        LiveActivityPolicy.decide(existing: existing, today: today, now: now, canCreate: canCreate)
+    private func decide(_ existing: [ActivitySnapshot], canCreate: Bool, allowReplace: Bool = true) -> LiveActivityDecision {
+        LiveActivityPolicy.decide(existing: existing, today: today, now: now, canCreate: canCreate, allowReplace: allowReplace)
     }
 
     func test_noActivity_createsOne() {
@@ -54,6 +54,24 @@ final class LiveActivityPolicyTests: XCTestCase {
     func test_foreground_rotatesAnythingOlderThanTheThreshold() {
         let aged = snapshot(id: "aged", ageHours: 1.5)
         XCTAssertEqual(decide([aged], canCreate: true), .replace)
+    }
+
+    // THE POLL MUST NEVER ROTATE. The five-second poll passes allowReplace:false
+    // so it can only ever update — even an activity well past the rotation
+    // threshold. Rotation is confined to the deliberate foreground entry, so a
+    // single open session can't rotate the island repeatedly (the daytime
+    // disappearance in the device logs).
+    func test_poll_updatesAnAgedActivity_ratherThanRotating() {
+        let aged = snapshot(id: "aged", ageHours: 5)
+        XCTAssertEqual(decide([aged], canCreate: true, allowReplace: false), .update(id: "aged"))
+    }
+
+    // But the poll must still REVIVE a dead island — that's a create, not a
+    // rotation, and reviving is always allowed.
+    func test_poll_stillRevivesADeadIsland() {
+        XCTAssertEqual(decide([], canCreate: true, allowReplace: false), .replace)
+        let corpse = snapshot(id: "corpse", isUpdatable: false, ageHours: 9)
+        XCTAssertEqual(decide([corpse], canCreate: true, allowReplace: false), .replace)
     }
 
     func test_foregroundRotationThreshold_leavesAFreshActivityAlone() {

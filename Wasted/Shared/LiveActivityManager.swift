@@ -58,39 +58,73 @@ enum LiveActivityPolicy {
         existing: [ActivitySnapshot],
         today: String,
         now: Date = Date(),
-        canCreate: Bool
+        canCreate: Bool,
+        allowReplace: Bool = true
     ) -> LiveActivityDecision {
         let usable = existing.first {
             $0.day == today            // not yesterday's
                 && $0.isUpdatable      // not a corpse
         }
+        // No usable activity → we MUST create one (honoured only when canCreate).
+        // This is independent of allowReplace: reviving a dead island is always
+        // allowed; only ROTATING a live one is what allowReplace gates.
         guard let usable else { return .replace }
         // No age cutoff for updates: the old `< 7h` filter made BACKGROUND runs
         // treat a live 7h activity as unusable, so updates stopped a full hour
         // before iOS actually killed it. An activity is worth updating until
         // the moment it dies; only creation decides whether dying matters.
-        if canCreate, now.timeIntervalSince(usable.startedAt) >= foregroundRotateAfter {
+        //
+        // allowReplace is FALSE from the five-second poll: rotation (destroy +
+        // recreate) is the one dangerous operation, and letting a per-value
+        // poll trigger it meant a single session rotated the island several
+        // times, each a fresh chance to race. Only the deliberate foreground
+        // ENTRY rotates now — at most once per open.
+        if canCreate, allowReplace, now.timeIntervalSince(usable.startedAt) >= foregroundRotateAfter {
             return .replace
         }
         return .update(id: usable.id)
     }
 }
 
-// Every ActivityKit mutation in the main app funnels through here.
+// Every ActivityKit mutation in the main app funnels through here, STRICTLY ONE
+// AT A TIME.
 //
-// Two callers now push to the island — the scene coming active, and HomeView's
-// five-second poll while it's on screen — and at launch they fire at almost the
-// same moment. Two concurrent `startOrUpdate`s can both look at an empty
-// `Activity.activities`, both decide `.replace`, and both call `request()`,
-// leaving TWO live activities racing on the Lock Screen. An actor serialises
-// them, so the second one sees what the first one created.
+// Two callers push to the island — the scene coming active, and HomeView's
+// five-second poll — and at foreground they fire at almost the same moment.
+// The old design wrapped `startOrUpdate` in an actor and a comment claiming
+// that serialised them. It did NOT: an actor method whose whole body is a
+// single `await` releases its isolation at that await (actor reentrancy), so
+// the two `startOrUpdate` bodies interleaved. One would take the `.replace`
+// path (which ends every activity, then creates) while the other took
+// `.update` (which ends every activity that ISN'T its target) — and the two
+// ended each other's activities, leaving ZERO on the Lock Screen. That is the
+// daytime disappearance the device logs showed: `REPLACING` and `updated`
+// stamped at the same second, no `CREATED`, then `0 activity(s)`.
+//
+// The fix is a real queue. Each `sync` chains onto the tail of the previous
+// one and only touches ActivityKit after it has fully finished. The chaining
+// (`previous = tail; tail = work`) runs synchronously before any await, so it
+// is correct even under reentrancy. No two mutations ever overlap.
 actor LiveActivityCoordinator {
     static let shared = LiveActivityCoordinator()
     private let manager = LiveActivityManager()
+    private var tail: Task<Void, Never>?
 
-    /// `canCreate` is FALSE from any background caller. See startOrUpdate.
-    func sync(totalSeconds: Int, canCreate: Bool) async {
-        await manager.startOrUpdate(totalSeconds: totalSeconds, canCreate: canCreate)
+    /// `canCreate` is FALSE from any background caller; `allowReplace` is FALSE
+    /// from the poll (only a deliberate foreground entry may rotate). See
+    /// startOrUpdate and LiveActivityPolicy.decide.
+    func sync(totalSeconds: Int, canCreate: Bool, allowReplace: Bool = true) async {
+        let previous = tail
+        let work = Task { [manager] in
+            await previous?.value
+            await manager.startOrUpdate(
+                totalSeconds: totalSeconds,
+                canCreate: canCreate,
+                allowReplace: allowReplace
+            )
+        }
+        tail = work
+        await work.value
     }
 }
 
@@ -113,7 +147,7 @@ final class LiveActivityManager {
     //
     // So background callers may only ever UPDATE. If there's nothing to update,
     // they do nothing and wait for the user to open the app.
-    func startOrUpdate(totalSeconds: Int, canCreate: Bool) async {
+    func startOrUpdate(totalSeconds: Int, canCreate: Bool, allowReplace: Bool = true) async {
         let content = Self.makeContent(totalSeconds: totalSeconds)
         let today = Self.dayString()
         let activities = Activity<TimeTrackerAttributes>.activities
@@ -121,7 +155,8 @@ final class LiveActivityManager {
         let decision = LiveActivityPolicy.decide(
             existing: activities.map(Self.snapshot),
             today: today,
-            canCreate: canCreate
+            canCreate: canCreate,
+            allowReplace: allowReplace
         )
 
         // Never end an activity we cannot replace. Reaching here from the
@@ -159,9 +194,15 @@ final class LiveActivityManager {
                 }.joined(separator: " | ")
             EventLog.log(.island, "REPLACING — \(why)")
 
-            for dead in activities {
-                await dead.end(nil, dismissalPolicy: .immediate)
-            }
+            // CREATE BEFORE END. The old order — end every activity, THEN
+            // request a new one — passed through a zero-activity state, and if
+            // the task was killed in that window (the app suspends the instant
+            // after a glance, which is exactly when a foreground rotation runs)
+            // the island was gone with nothing to replace it. Requesting first
+            // means an interrupted rotation leaves the NEW activity standing,
+            // not nothing. Ending old ones only after the new one exists at
+            // worst shows a momentary duplicate, which the next update sweeps
+            // up — infinitely better than a dead island that needs a reopen.
             let activity = try? Activity<TimeTrackerAttributes>.request(
                 attributes: TimeTrackerAttributes(day: today, startedAt: Date()),
                 content: content,
@@ -170,12 +211,17 @@ final class LiveActivityManager {
             if let activity {
                 IslandStatus.markAlive()
                 EventLog.log(.island, "CREATED id=\(activity.id) total=\(totalSeconds)s")
+                // Now retire the ones that were here before — never the fresh one.
+                for dead in activities where dead.id != activity.id {
+                    await dead.end(nil, dismissalPolicy: .immediate)
+                }
             } else {
                 // request() throws if the user disabled Live Activities, or if
-                // iOS is rate-limiting. Deliberately NOT marked down: the first
-                // is a choice the nudge shouldn't nag about, the second is
-                // transient.
-                EventLog.error(.island, "Activity.request() FAILED — no island. enabled=\(ActivityAuthorizationInfo().areActivitiesEnabled)")
+                // iOS is rate-limiting. The old activities are LEFT ALONE — a
+                // stale island still beats no island. Deliberately NOT marked
+                // down: disabling is a choice the nudge shouldn't nag about, and
+                // rate-limiting is transient.
+                EventLog.error(.island, "Activity.request() FAILED — keeping \(activities.count) existing. enabled=\(ActivityAuthorizationInfo().areActivitiesEnabled)")
             }
         }
     }

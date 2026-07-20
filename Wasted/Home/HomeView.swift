@@ -465,7 +465,13 @@ struct HomeView: View {
     private func syncIsland() {
         guard totalSeconds != lastPushedTotal else { return }
         lastPushedTotal = totalSeconds
-        Task { await LiveActivityCoordinator.shared.sync(totalSeconds: totalSeconds, canCreate: true) }
+        // allowReplace: false — the poll only ever UPDATES. Rotation (end +
+        // recreate) is the dangerous move; letting a per-value poll trigger it
+        // meant one session rotated the island repeatedly, each a fresh race.
+        // The scene coming active is the ONE place a rotation is allowed, so it
+        // happens at most once per open. (A dead island is still revived here —
+        // that's a create, not a rotation, and it's always permitted.)
+        Task { await LiveActivityCoordinator.shared.sync(totalSeconds: totalSeconds, canCreate: true, allowReplace: false) }
     }
 
     private func updateRealityCheck(history: [DailyUsage]) {

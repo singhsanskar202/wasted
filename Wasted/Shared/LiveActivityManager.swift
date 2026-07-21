@@ -44,6 +44,15 @@ enum LiveActivityDecision: Equatable {
     case replace
 }
 
+// When `.replace` is decided there is nothing usable to update. What we do
+// about it depends on the caller — and this three-way split is the fix for the
+// "it fights my dismissal" and "island gone, banner lingering" bugs.
+enum ReplaceResolution: Equatable {
+    case create           // scene open: build a fresh activity
+    case cleanupAndFlag   // background: can't create — clear the ghost banner, flag the nudge
+    case leaveAlone       // poll: the user dismissed it — respect that
+}
+
 enum LiveActivityPolicy {
     // Every FOREGROUND pass where the activity has aged past this rotates it —
     // end + fresh request — so each open of the app restarts the 8h clock
@@ -84,6 +93,18 @@ enum LiveActivityPolicy {
         }
         return .update(id: usable.id)
     }
+
+    // How a `.replace` is resolved, by caller. Pure, so the behaviour that
+    // stops the dismissal fight and the ghost-banner desync is test-locked.
+    //   · background (!canCreate): clean up the corpse + flag — never a ghost.
+    //   · poll (!allowCreate): the island vanished while the app is open, i.e.
+    //     the user swiped it away; leave it, don't recreate under their thumb.
+    //   · scene open: create.
+    static func resolveReplace(canCreate: Bool, allowCreate: Bool) -> ReplaceResolution {
+        if !canCreate { return .cleanupAndFlag }
+        if !allowCreate { return .leaveAlone }
+        return .create
+    }
 }
 
 // Every ActivityKit mutation in the main app funnels through here, STRICTLY ONE
@@ -113,14 +134,15 @@ actor LiveActivityCoordinator {
     /// `canCreate` is FALSE from any background caller; `allowReplace` is FALSE
     /// from the poll (only a deliberate foreground entry may rotate). See
     /// startOrUpdate and LiveActivityPolicy.decide.
-    func sync(totalSeconds: Int, canCreate: Bool, allowReplace: Bool = true) async {
+    func sync(totalSeconds: Int, canCreate: Bool, allowReplace: Bool = true, allowCreate: Bool = true) async {
         let previous = tail
         let work = Task { [manager] in
             await previous?.value
             await manager.startOrUpdate(
                 totalSeconds: totalSeconds,
                 canCreate: canCreate,
-                allowReplace: allowReplace
+                allowReplace: allowReplace,
+                allowCreate: allowCreate
             )
         }
         tail = work
@@ -147,7 +169,7 @@ final class LiveActivityManager {
     //
     // So background callers may only ever UPDATE. If there's nothing to update,
     // they do nothing and wait for the user to open the app.
-    func startOrUpdate(totalSeconds: Int, canCreate: Bool, allowReplace: Bool = true) async {
+    func startOrUpdate(totalSeconds: Int, canCreate: Bool, allowReplace: Bool = true, allowCreate: Bool = true) async {
         let content = Self.makeContent(totalSeconds: totalSeconds)
         let today = Self.dayString()
         let activities = Activity<TimeTrackerAttributes>.activities
@@ -159,15 +181,41 @@ final class LiveActivityManager {
             allowReplace: allowReplace
         )
 
-        // Never end an activity we cannot replace. Reaching here from the
-        // background means the island is DARK — dead or never started today —
-        // and this process can't relight it. Record that for the monitor
-        // extension, which is the only thing guaranteed to speak to the user
-        // before they next open the app.
-        if case .replace = decision, !canCreate {
-            IslandStatus.markDown(today: today)
-            EventLog.log(.island, "background: island DOWN, cannot create (foreground-only) — flagged for nudge, \(activities.count) activity(s) untouched")
-            return
+        // `.replace` means there is nothing usable to update (or an aged one
+        // worth rotating). WHETHER we may build the replacement depends on who
+        // is calling — and getting this wrong is exactly what produced the two
+        // reported bugs:
+        //
+        //   · BACKGROUND (canCreate == false) can't create at all. The island
+        //     is dark. iOS ends an activity at the 8h cap by removing the
+        //     Dynamic Island *instantly* but leaving the Lock Screen banner
+        //     lingering for hours — the "island gone, notification still there"
+        //     desync. So END the ghost here (clean, consistent: neither surface
+        //     shows a corpse) and flag the dark island for the morning nudge.
+        //
+        //   · POLL (allowCreate == false) runs every 5s while the app is open.
+        //     If the activity vanished while the app is foreground, the user
+        //     almost certainly SWIPED IT AWAY — and the old code recreated it
+        //     within 5 seconds, three times in twelve seconds (device logs,
+        //     11:57). Respect the dismissal: do nothing, let the next deliberate
+        //     open bring it back.
+        //
+        //   · SCENE OPEN (both true) falls through to create-before-end below.
+        if case .replace = decision {
+            switch LiveActivityPolicy.resolveReplace(canCreate: canCreate, allowCreate: allowCreate) {
+            case .cleanupAndFlag:
+                for ghost in activities {
+                    await ghost.end(nil, dismissalPolicy: .immediate)
+                }
+                IslandStatus.markDown(today: today)
+                EventLog.log(.island, "background: island DOWN — cleared \(activities.count) ghost(s), flagged for nudge")
+                return
+            case .leaveAlone:
+                EventLog.log(.island, "poll: no live activity (dismissed?) — not recreating; waiting for a deliberate open")
+                return
+            case .create:
+                break   // fall through to create-before-end
+            }
         }
 
         switch decision {

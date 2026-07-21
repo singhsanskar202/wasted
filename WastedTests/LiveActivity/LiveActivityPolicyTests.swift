@@ -66,12 +66,24 @@ final class LiveActivityPolicyTests: XCTestCase {
         XCTAssertEqual(decide([aged], canCreate: true, allowReplace: false), .update(id: "aged"))
     }
 
-    // But the poll must still REVIVE a dead island — that's a create, not a
-    // rotation, and reviving is always allowed.
-    func test_poll_stillRevivesADeadIsland() {
+    // `decide` still reports `.replace` when nothing is usable — but what HAPPENS
+    // then is resolveReplace's job, tested below. The poll must NOT recreate.
+    func test_noUsableActivity_decidesReplace_regardlessOfAllowReplace() {
         XCTAssertEqual(decide([], canCreate: true, allowReplace: false), .replace)
         let corpse = snapshot(id: "corpse", isUpdatable: false, ageHours: 9)
         XCTAssertEqual(decide([corpse], canCreate: true, allowReplace: false), .replace)
+    }
+
+    // THE FIX FOR BOTH REPORTED BUGS, in one pure function.
+    func test_resolveReplace_byCaller() {
+        // Scene open — build a fresh island.
+        XCTAssertEqual(LiveActivityPolicy.resolveReplace(canCreate: true, allowCreate: true), .create)
+        // Background — can't create; clean the lingering ghost banner and flag
+        // the nudge. (Fixes "island gone, notification still there".)
+        XCTAssertEqual(LiveActivityPolicy.resolveReplace(canCreate: false, allowCreate: true), .cleanupAndFlag)
+        // Poll — the island vanished while the app is open = the user swiped it
+        // away. Leave it. (Fixes the app recreating it 5s after every dismissal.)
+        XCTAssertEqual(LiveActivityPolicy.resolveReplace(canCreate: true, allowCreate: false), .leaveAlone)
     }
 
     func test_foregroundRotationThreshold_leavesAFreshActivityAlone() {

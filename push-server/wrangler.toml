@@ -21,4 +21,4 @@ APP_BUNDLE_ID = "com.sanskar.Wasted"
 # then paste the returned id below.
 [[kv_namespaces]]
 binding = "TOKENS"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
+id = "a00d6ac634b541ca9ad1faafe8b5cf1d"

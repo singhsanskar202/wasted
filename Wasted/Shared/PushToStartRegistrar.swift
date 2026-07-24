@@ -24,7 +24,7 @@ enum PushToStartRegistrar {
     // The server that stores tokens and sends the scheduled start pushes.
     // Empty = push-to-start disabled (the app still works; the island just
     // can't self-revive). Set this to the deployed Worker URL before shipping.
-    static let serverBase = ""   // e.g. "https://wasted-push.<subdomain>.workers.dev"
+    static let serverBase = "https://wasted-push.singhsanskar2000.workers.dev"
 
     /// A stable per-install id so the server replaces a device's old token
     /// instead of hoarding duplicates. Not tied to any Apple identifier.

@@ -65,6 +65,10 @@ struct WastedApp: App {
                 ActivityScheduler.shared.refreshRegistrationIfNeeded()
                 let store = UsageStore()
                 store.stampFirstLaunchIfNeeded()
+                // Clear any total corrupted by a DeviceActivity replay burst
+                // before it's shown — a 12h/48h number destroys the one thing
+                // the app sells. Cannot misfire on real usage.
+                store.healImpossibleTotal()
                 #if targetEnvironment(simulator)
                 // DeviceActivity never records in the simulator, so every
                 // usage-driven surface renders empty and can't be judged. Seed a

@@ -47,6 +47,10 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         _ event: DeviceActivityEvent.Name,
         activity: DeviceActivityName
     ) {
+        // Heal a total already corrupted by a past replay before doing anything
+        // else — otherwise a stuck 12h/48h would sit there until midnight.
+        store.healImpossibleTotal()
+
         let parts = event.rawValue.components(separatedBy: ":")
         guard parts.count == 2,
               let minutes = Int(parts[1]),
@@ -72,9 +76,13 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         // "total:N" series covers the same usage at minute fidelity, and
         // adding both would double count.
         let current = store.loadTodayUsage().totalSeconds(for: appIndex)
-        let delta = totalSeconds > current ? totalSeconds - current : 0
-        if delta > 0 {
-            store.addSeconds(delta, for: appIndex)
+        // Same replay guard as the combined series: a per-app threshold that
+        // jumps more than an hour in one event is a replayed cumulative total,
+        // not real usage. Accept only plausible monotonic steps.
+        if ThresholdSanity.accept(newTotalSeconds: totalSeconds, storedSeconds: current) {
+            store.addSeconds(totalSeconds - current, for: appIndex)
+        } else if totalSeconds > current {
+            EventLog.error(.monitor, "per-app \(appIndex) threshold \(minutes)m REJECTED — implausible +\((totalSeconds - current) / 60)m jump over \(current / 60)m (replay/desync)")
         }
 
         // No entitlement gate here: the daily mirror — nudges, receipt, island,
@@ -142,6 +150,13 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             // these is the signature of the schedule being re-registered in a
             // loop — which would be a real bug and is otherwise invisible.
             EventLog.log(.monitor, "combined threshold \(minutes)m REPLAYED (stored=\(stored / 60)m)")
+            return
+        }
+        // Reject physically-impossible jumps: a replayed cross-day cumulative
+        // total is hundreds of minutes above reality, and the day can never
+        // exceed one hour more than the last real step. See ThresholdSanity.
+        guard ThresholdSanity.accept(newTotalSeconds: newTotal, storedSeconds: stored) else {
+            EventLog.error(.monitor, "combined threshold \(minutes)m REJECTED — implausible +\((newTotal - stored) / 60)m jump over \(stored / 60)m (replay/desync)")
             return
         }
         store.setCombinedSecondsToday(newTotal)

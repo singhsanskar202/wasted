@@ -1,5 +1,30 @@
 import Foundation
 
+// THE DEDUP THAT STOPS A REPLAY FROM INFLATING THE DAY.
+//
+// Every DeviceActivity event registers with `includesPastActivity: true` so a
+// mid-day re-registration keeps counting the whole day instead of restarting
+// from zero. The cost: on re-registration DeviceActivity REPLAYS thresholds,
+// and it can replay a CROSS-DAY CUMULATIVE total that is hundreds of minutes
+// above today's reality. The old dedup only rejected replays LOWER than the
+// stored value (`new > stored`), so these high replays sailed through and
+// ratcheted the total to 12h (device logs: a single event jumping +241m).
+//
+// A real threshold advances a minute at a time (the combined series is
+// 1-minute-spaced; even a batch after a gap arrives as separate +1m events).
+// So a single event that jumps more than an hour is not real usage — it is a
+// replay artifact. Accept only monotonic, physically-plausible steps.
+enum ThresholdSanity {
+    // Generous: real steps are 1m (combined) or 15m (per-app); replays jump by
+    // hundreds. An hour sits far above every legitimate step and far below
+    // every observed replay.
+    static let maxJumpSeconds = 60 * 60
+
+    static func accept(newTotalSeconds: Int, storedSeconds: Int) -> Bool {
+        newTotalSeconds > storedSeconds
+            && (newTotalSeconds - storedSeconds) <= maxJumpSeconds
+    }
+}
 
 final class UsageStore {
     let defaults: UserDefaults
@@ -75,6 +100,34 @@ final class UsageStore {
     func setCombinedSecondsToday(_ seconds: Int) {
         defaults.set(seconds, forKey: AppGroupKeys.combinedSecondsKey)
         defaults.set(DailyUsage.todayString(), forKey: AppGroupKeys.combinedSecondsDateKey)
+    }
+
+    // SELF-HEAL AGAINST A CORRUPTED TOTAL.
+    //
+    // Today's usage can never exceed the wall-clock time elapsed since local
+    // midnight — you cannot use the phone for more minutes than have passed. A
+    // DeviceActivity replay burst (a cross-day cumulative total replayed on
+    // re-registration) once slammed the count to 12h at 7pm; the per-app sum
+    // read 48h. Both are impossible. When that's detected, wipe today and let
+    // real thresholds rebuild it — a number that resets and re-climbs is far
+    // better than one that lies. This CANNOT misfire on legitimate data: real
+    // usage is always ≤ elapsed time.
+    @discardableResult
+    func healImpossibleTotal(now: Date = Date()) -> Bool {
+        let elapsed = Int(now.timeIntervalSince(Calendar.current.startOfDay(for: now)))
+        guard elapsed > 0 else { return false }
+        let perApp = totalSecondsAllApps()
+        let combined = combinedSecondsToday()
+        guard perApp > elapsed || combined > elapsed else { return false }
+
+        EventLog.error(.monitor, "IMPOSSIBLE total healed — perApp=\(perApp / 60)m combined=\(combined / 60)m > elapsed=\(elapsed / 60)m; today reset (DeviceActivity replay corruption)")
+        var usage = loadTodayUsage()
+        usage.seconds = [:]
+        usage.hourly = Array(repeating: 0, count: 24)
+        save(usage)
+        setCombinedSecondsToday(0)
+        publishLiveTotal()
+        return true
     }
 
     // MARK: - The island's lifeline

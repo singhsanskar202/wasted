@@ -12,7 +12,7 @@ crons = ["0 1,8,15,22 * * *"]
 # Public vars (safe to commit). Secrets (APNS_KEY_P8) are set separately with
 # `wrangler secret put` — never put the .p8 here.
 [vars]
-APNS_KEY_ID = "REPLACE_WITH_10CHAR_KEY_ID"
+APNS_KEY_ID = "K53UMU3R6J"
 APNS_TEAM_ID = "ZZZ87SSQ8S"
 APP_BUNDLE_ID = "com.sanskar.Wasted"
 

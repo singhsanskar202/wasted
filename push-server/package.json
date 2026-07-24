@@ -1,0 +1,15 @@
+{
+  "name": "wasted-push",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Push-to-start server that keeps Wasted's Live Activity island alive. Holds only an opaque APNs token; never any usage data.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "test-cron": "wrangler dev --test-scheduled"
+  },
+  "devDependencies": {
+    "wrangler": "^3.90.0"
+  }
+}

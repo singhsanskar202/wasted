@@ -7,9 +7,10 @@ because there is almost nothing to disclose.
 
 ## The one-sentence version
 
-Your screen-time data is processed entirely on your device, is never
-transmitted to us or to anyone else, and we operate no servers that could
-receive it.
+Your screen-time data is processed entirely on your device and is never
+transmitted to us or anyone else. The only thing that leaves your device is an
+anonymous Apple push token, used solely to keep the Live Activity on your Lock
+Screen and Dynamic Island alive — it carries none of your usage.
 
 ## What the app accesses
 
@@ -30,13 +31,24 @@ control.
 
 ## What we collect
 
-Nothing.
+Effectively nothing, and no usage data ever.
 
 - No analytics or telemetry.
 - No advertising identifiers, no tracking, no third-party SDKs.
 - No account, email, or name.
-- No network transmission of usage data — the app's screen-time features
-  work entirely offline.
+- No transmission of usage data — the app's screen-time counting works
+  entirely offline.
+
+## The one thing that leaves your device: a push token
+
+To keep the counter on your Lock Screen and Dynamic Island alive when the app
+isn't open, Apple's Live Activity system requires a small server to send
+scheduled "wake up" pushes. For that, the app sends **one anonymous Apple Push
+Notification token** and a random install identifier to our push server. This
+token is an opaque delivery address issued by Apple; it is not linked to your
+name, Apple ID, or device identity, and it contains **none of your usage**. The
+"wake up" push we send back is empty — your device fills in the number locally.
+The token is discarded when you delete the app. Nothing else is ever sent.
 
 ## Purchases
 

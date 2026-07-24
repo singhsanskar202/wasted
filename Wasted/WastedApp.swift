@@ -36,6 +36,10 @@ struct WastedApp: App {
         if !ProGate.paywallEnabled {
             EventLog.error(.trial, "PAYWALL DISABLED — beta build. ProGate.paywallEnabled must be true to ship.")
         }
+        // Start consuming the push-to-start token stream so the server can
+        // revive the island while the app is closed. No-op until a server URL
+        // is configured (PushToStartRegistrar.serverBase). Harmless under test.
+        PushToStartRegistrar.start()
     }
 
     var body: some Scene {

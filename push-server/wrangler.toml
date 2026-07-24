@@ -1,0 +1,24 @@
+name = "wasted-push"
+main = "src/worker.js"
+compatibility_date = "2024-11-01"
+
+# The scheduled start pushes. iOS kills a Live Activity 8h after creation, so
+# firing every ~7 hours guarantees the island is re-created before it dies —
+# and the 7am UTC-ish slots put a fresh island up around the morning. Adjust to
+# taste; more frequent = more reliably alive, at more APNs calls.
+[triggers]
+crons = ["0 1,8,15,22 * * *"]
+
+# Public vars (safe to commit). Secrets (APNS_KEY_P8) are set separately with
+# `wrangler secret put` — never put the .p8 here.
+[vars]
+APNS_KEY_ID = "REPLACE_WITH_10CHAR_KEY_ID"
+APNS_TEAM_ID = "ZZZ87SSQ8S"
+APP_BUNDLE_ID = "com.sanskar.Wasted"
+
+# The token store. Create with:
+#   wrangler kv namespace create TOKENS
+# then paste the returned id below.
+[[kv_namespaces]]
+binding = "TOKENS"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"

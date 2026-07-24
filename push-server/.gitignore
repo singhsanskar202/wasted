@@ -1,0 +1,5 @@
+node_modules/
+# NEVER commit the APNs auth key or any secret
+*.p8
+.dev.vars
+.wrangler/

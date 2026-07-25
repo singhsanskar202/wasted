@@ -5,20 +5,18 @@ import XCTest
 // forever; ProGate only decides who sees the long receipt.
 final class ProGateTests: XCTestCase {
 
-    // The beta override may make everyone Pro, but it must never make a PAYING
-    // state read as locked — and once the paywall ships, the gate must be
-    // exactly the entitlement.
+    // A purchase always unlocks Pro.
     func test_unlockedIsAlwaysPro() {
         XCTAssertTrue(ProGate.isPro(unlocked: true))
     }
 
-    func test_betaOverride_isLoud() {
-        // If this fails, the paywall went live: delete this assertion and flip
-        // the one below on. It exists so flipping the flag for launch is a
-        // conscious act that breaks a test, not a silent diff.
-        XCTAssertFalse(ProGate.paywallEnabled, "paywall is ON — ship mode. Update this test.")
-        // Ship mode contract (enable with the flag):
-        // XCTAssertFalse(ProGate.isPro(unlocked: false))
+    // SHIP MODE: the paywall is live, so the gate is EXACTLY the entitlement —
+    // no purchase, no Pro. (This replaced the beta tripwire that asserted the
+    // flag was off; flipping it to ship was the conscious act that broke it.)
+    func test_shipMode_gateIsTheEntitlement() {
+        XCTAssertTrue(ProGate.paywallEnabled, "should ship with the paywall ON")
+        XCTAssertFalse(ProGate.isPro(unlocked: false), "no purchase → no Pro")
+        XCTAssertTrue(ProGate.isPro(unlocked: true))
     }
 
     func test_usageStore_firstLaunchRoundTrip() {

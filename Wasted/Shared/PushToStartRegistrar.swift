@@ -67,9 +67,11 @@ enum PushToStartRegistrar {
 
     private static func upload(token: String) async {
         guard let url = URL(string: serverBase + "/register") else { return }
-        // Send the token only if it changed — the stream can re-emit the same one.
+        // Uploaded on every token emission (≈once per launch) rather than only
+        // on change, so the device's timezone stays current on the server — a
+        // traveller's revivals should follow them, and the server write is
+        // idempotent and tiny.
         let defaults = UserDefaults.wastedShared
-        guard defaults.string(forKey: "push_last_token") != token else { return }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -78,6 +80,9 @@ enum PushToStartRegistrar {
             "token": token,
             "install": installID,
             "env": apnsEnvironment,
+            // Minutes offset from GMT, so the server can schedule revivals at
+            // the user's LOCAL waking hours (8am local, never 3am).
+            "tz": TimeZone.current.secondsFromGMT() / 60,
         ])
 
         do {

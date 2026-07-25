@@ -6,8 +6,11 @@ compatibility_date = "2024-11-01"
 # firing every ~7 hours guarantees the island is re-created before it dies —
 # and the 7am UTC-ish slots put a fresh island up around the morning. Adjust to
 # taste; more frequent = more reliably alive, at more APNs calls.
+# Hourly tick. The worker itself decides, per device, whether the current hour
+# is a revival hour in that device's LOCAL timezone (REVIVAL_LOCAL_HOURS), so
+# each user gets a handful of revivals a day at their own waking hours.
 [triggers]
-crons = ["0 1,8,15,22 * * *"]
+crons = ["0 * * * *"]
 
 # Public vars (safe to commit). Secrets (APNS_KEY_P8) are set separately with
 # `wrangler secret put` — never put the .p8 here.

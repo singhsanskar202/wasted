@@ -27,8 +27,20 @@ const APNS_HOSTS = {
 export default {
   // ---- token registration from the app ------------------------------------
   async fetch(request, env) {
-    if (request.method !== "POST") return new Response("ok", { status: 200 });
     const url = new URL(request.url);
+
+    // TEMPORARY test trigger — runs the scheduled push on demand and reports
+    // each token's APNs response, so we can verify end-to-end without waiting
+    // for the cron. Guarded by an obscure path; REMOVE before real launch.
+    if (url.pathname === "/test-send-9f3a2c") {
+      const results = await sendStartPushes(env, { report: true });
+      return new Response(JSON.stringify(results, null, 2), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+
+    if (request.method !== "POST") return new Response("ok", { status: 200 });
     if (url.pathname !== "/register") return new Response("not found", { status: 404 });
 
     let body;
@@ -37,23 +49,38 @@ export default {
     } catch {
       return new Response("bad json", { status: 400 });
     }
-    const { token, install, env: apnsEnv } = body || {};
+    const { token, install, env: apnsEnv, tz } = body || {};
     if (!token || !install || !["sandbox", "production"].includes(apnsEnv)) {
       return new Response("missing fields", { status: 400 });
     }
-    // One record per install — replaces the old token, never hoards.
-    await env.TOKENS.put(install, JSON.stringify({ token, env: apnsEnv }));
+    // One record per install — replaces the old token, never hoards. `tz` is
+    // the device's minutes-offset from GMT, so revivals land at local time.
+    await env.TOKENS.put(
+      install,
+      JSON.stringify({ token, env: apnsEnv, tz: Number(tz) || 0 })
+    );
     return new Response("registered", { status: 200 });
   },
 
-  // ---- scheduled start pushes (cron) --------------------------------------
+  // ---- scheduled start pushes (cron, hourly) ------------------------------
+  // The cron ticks every hour; each device is only pushed when its LOCAL hour
+  // is one of REVIVAL_LOCAL_HOURS. So every device gets a handful of quiet
+  // revivals a day at its own waking hours — well within the push-to-start
+  // budget, and never at 3am.
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(sendStartPushes(env));
+    ctx.waitUntil(sendStartPushes(env, { onlyAtLocalHours: true }));
   },
 };
 
-async function sendStartPushes(env) {
+// A few revivals a day, at the user's local waking hours. Spacing (~5h) means a
+// dismissed or expired island is back within a few hours without the app being
+// opened — the practical ceiling given iOS forces a notification per push.
+const REVIVAL_LOCAL_HOURS = [8, 13, 18, 22];
+
+async function sendStartPushes(env, { report = false, onlyAtLocalHours = false } = {}) {
   const jwtByEnv = {}; // cache one signed JWT per APNs host for this run
+  const results = [];
+  const utcHour = new Date().getUTCHours();
   let cursor;
   do {
     const page = await env.TOKENS.list({ cursor, limit: 1000 });
@@ -65,12 +92,20 @@ async function sendStartPushes(env) {
       const host = APNS_HOSTS[rec.env];
       if (!host) continue;
 
+      // Only revive when it's a target hour in THIS device's timezone.
+      if (onlyAtLocalHours) {
+        const localHour = ((utcHour + Math.round((rec.tz || 0) / 60)) % 24 + 24) % 24;
+        if (!REVIVAL_LOCAL_HOURS.includes(localHour)) continue;
+      }
+
       if (!jwtByEnv[rec.env]) {
         jwtByEnv[rec.env] = await makeAPNsJWT(env);
       }
-      await pushStart(host, jwtByEnv[rec.env], rec.token, env, key.name);
+      const r = await pushStart(host, jwtByEnv[rec.env], rec.token, env, key.name);
+      if (report) results.push({ install: key.name, env: rec.env, ...r });
     }
   } while (cursor);
+  return results;
 }
 
 // The push-to-start payload. `event: "start"` tells iOS to CREATE the activity.
@@ -83,11 +118,27 @@ async function pushStart(host, jwt, deviceToken, env, install) {
     aps: {
       timestamp: now,
       event: "start",
-      "content-state": { totalSeconds: 0, confirmedAt: isoNow() },
+      // Passive: the required notification slips into Notification Center
+      // without a banner or sound. The island still appears; the alert doesn't
+      // interrupt. This is the least-intrusive way to satisfy iOS's rule that
+      // a push-to-start MUST carry an alert.
+      "interruption-level": "passive",
+      // Date fields as Unix epoch SECONDS (numbers) — ActivityKit's push
+      // decoder wants that, not ISO strings. Both the content-state and the
+      // attributes carry Dates, so both must be numeric.
+      "content-state": { totalSeconds: 0, confirmedAt: now },
       "attributes-type": "TimeTrackerAttributes",
-      attributes: { day: localDay(), startedAt: isoNow() },
+      attributes: { day: localDay(), startedAt: now },
       "stale-date": now + 8 * 3600,
-      alert: { title: "wasted", body: "" }, // required by APNs; the island shows the number, not this
+      // REQUIRED: iOS rejects a push-to-start with no alert ("Received start
+      // without an alert configuration"). Both title and body must be
+      // non-empty. This does surface a quiet notification each time the island
+      // is revived — the cadence (a few times a day) keeps it tolerable, and
+      // the wording is on-brand rather than spammy.
+      alert: {
+        title: "wasted",
+        body: "your day is being counted.",
+      },
     },
   };
 
@@ -107,6 +158,9 @@ async function pushStart(host, jwt, deviceToken, env, install) {
   if (res.status === 410) {
     await env.TOKENS.delete(install);
   }
+  // APNs returns 200 empty on success, or JSON { reason } on failure.
+  const reason = res.status === 200 ? "" : await res.text();
+  return { status: res.status, apnsId: res.headers.get("apns-id") || "", reason };
 }
 
 // ---- APNs token auth (ES256 JWT), signed with the .p8 key -----------------

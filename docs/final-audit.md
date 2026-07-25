@@ -4,28 +4,29 @@ Date: 2026-07-25. Covers everything through the push-to-start server + copy
 pass. Verdict: **the app is in good shape; the blockers are all known, mostly
 account/ASC steps, not code defects.**
 
-## 🔴 Critical — must resolve before the App Store build
+## 🔴 Critical
 
-1. **Push server `/test-send-9f3a2c` endpoint is public and unauthenticated.**
-   Anyone with the URL can fire push-to-start at every registered device.
-   Harmless today (one tester), unacceptable at scale. **Remove it + the
-   report plumbing from `push-server/src/worker.js` and redeploy** before
-   launch.
+1. ~~Push server `/test-send` endpoint public~~ — **FIXED 2026-07-25.** Endpoint
+   + report plumbing removed and redeployed (POST → 404 verified). `/register`
+   now strictly validates token/install/env/tz shape (junk → 400 verified).
 
-2. **Paywall is off and its products don't exist yet.** `ProGate.paywallEnabled
-   = false`; create the 3 IAPs in ASC (`pro.monthly`, `pro.yearly` + 7-day
-   intro, `lifetime`) → flip the flag → update the tripwire test in
-   ProGateTests.
+2. **Paywall is off and its products don't exist yet** — the one remaining
+   real blocker, and it's an ASC task. Create the 3 IAPs (`pro.monthly`,
+   `pro.yearly` + 7-day intro, `lifetime`) → flip `ProGate.paywallEnabled` →
+   update the tripwire test in ProGateTests. NOTE: flipping that one flag now
+   ALSO removes the diagnostics button (they're gated together), so this is the
+   single switch for "ship mode".
 
-3. **Beta "send diagnostics" button** on the home footer — remove for the
-   App Store build (keep for TestFlight).
+3. ~~Beta "send diagnostics" button~~ — **FIXED 2026-07-25.** Now gated on
+   `!ProGate.paywallEnabled`, so it disappears automatically when the paywall
+   goes live. No separate step to forget.
 
-4. **Paywall has no Terms of Use / Privacy Policy links.** Auto-renewable
-   subscriptions require both (Guideline 3.1.2). Blocked on hosting the
-   privacy policy; then wire the links (snippet in docs/release-review.md).
+4. ~~Paywall missing Terms / Privacy links~~ — **FIXED 2026-07-25.** Both links
+   added (Apple standard EULA + hosted privacy policy). Privacy policy is now
+   served at `https://wasted-push.singhsanskar2000.workers.dev/privacy`.
 
-5. ~~Family Controls distribution entitlement~~ — **RESOLVED** (granted, a
-   signed distribution build verified). No longer a blocker.
+5. ~~Family Controls distribution entitlement~~ — **RESOLVED** (granted, signed
+   build verified).
 
 ## 🟠 High
 
@@ -37,10 +38,10 @@ account/ASC steps, not code defects.**
    discloses this. This is an ASC form accuracy item, not a code bug — but
    getting it wrong is a rejection/appstore-trust risk.
 
-7. **Push `/register` endpoint is unauthenticated.** Anyone could POST junk
-   tokens and bloat the KV store (can't target real users — they'd need a real
-   APNs token). Low severity; add a lightweight shared-header check or rate
-   limit before real scale.
+7. ~~Push `/register` unauthenticated~~ — **MITIGATED 2026-07-25.** Strict shape
+   validation now rejects non-token/non-UUID/bad-tz junk (400). A shared secret
+   in the app binary wouldn't be secret; App Attest is the real hardening if
+   abuse ever appears.
 
 8. **Zero VoiceOver support** (0 accessibilityLabels app-wide). The hero
    number, danger-zone chart, week bars, receipts read as silent or noisy.

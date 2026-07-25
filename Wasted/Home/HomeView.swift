@@ -346,24 +346,28 @@ struct HomeView: View {
                 showingIntentions = true
             }
 
-            // BETA ONLY — remove before the App Store.
+            // BETA ONLY. Gated on the SAME flag as the paywall, so flipping
+            // ProGate.paywallEnabled to ship the App Store build removes this
+            // automatically — no separate step to forget.
             //
             // A tester's log can't be pulled with devicectl (that only reaches a
             // phone paired to the developer's own Mac), and it must never be
             // uploaded: the app promises "your data, your device, nobody else sees
             // it", and a silent diagnostics upload would make that a lie. So the
             // tester exports it themselves, and chooses who gets it.
-            Button {
-                Haptics.light()
-                exportedLog = EventLog.export().map(ExportedLog.init(url:))
-            } label: {
-                Text("send diagnostics")
-                    .font(.system(size: 12, weight: .light))
-                    .foregroundStyle(Color.ink.opacity(0.28))
-                    .underline()
+            if !ProGate.paywallEnabled {
+                Button {
+                    Haptics.light()
+                    exportedLog = EventLog.export().map(ExportedLog.init(url:))
+                } label: {
+                    Text("send diagnostics")
+                        .font(.system(size: 12, weight: .light))
+                        .foregroundStyle(Color.ink.opacity(0.28))
+                        .underline()
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 14)
             }
-            .buttonStyle(.plain)
-            .padding(.top, 14)
         }
         .padding(.top, 6)
         .padding(.bottom, 26)

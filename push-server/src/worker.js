@@ -29,14 +29,13 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // TEMPORARY test trigger — runs the scheduled push on demand and reports
-    // each token's APNs response, so we can verify end-to-end without waiting
-    // for the cron. Guarded by an obscure path; REMOVE before real launch.
-    if (url.pathname === "/test-send-9f3a2c") {
-      const results = await sendStartPushes(env, { report: true });
-      return new Response(JSON.stringify(results, null, 2), {
+    // Privacy policy, served as a stable HTTPS page for the App Store listing
+    // and the in-app paywall link. Hosted here only because it's free and
+    // instant; can move to a custom domain later.
+    if (url.pathname === "/privacy") {
+      return new Response(PRIVACY_HTML, {
         status: 200,
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "text/html; charset=utf-8" },
       });
     }
 
@@ -50,14 +49,26 @@ export default {
       return new Response("bad json", { status: 400 });
     }
     const { token, install, env: apnsEnv, tz } = body || {};
-    if (!token || !install || !["sandbox", "production"].includes(apnsEnv)) {
-      return new Response("missing fields", { status: 400 });
+
+    // Strict shape validation — the endpoint is public, so reject anything that
+    // isn't a real APNs token + UUID install + known env + sane offset. This
+    // keeps junk out of the KV store without needing a shared secret (which,
+    // shipped inside the app binary, wouldn't be secret anyway). App Attest is
+    // the real hardening if abuse ever shows up.
+    const tokenOK = typeof token === "string" && /^[0-9a-f]{64,200}$/i.test(token);
+    const installOK =
+      typeof install === "string" &&
+      /^[0-9A-F-]{36}$/i.test(install); // UUID shape
+    const tzNum = Number(tz);
+    const tzOK = Number.isFinite(tzNum) && tzNum >= -720 && tzNum <= 840;
+    if (!tokenOK || !installOK || !["sandbox", "production"].includes(apnsEnv) || !tzOK) {
+      return new Response("bad request", { status: 400 });
     }
-    // One record per install — replaces the old token, never hoards. `tz` is
-    // the device's minutes-offset from GMT, so revivals land at local time.
+
+    // One record per install — replaces the old token, never hoards.
     await env.TOKENS.put(
       install,
-      JSON.stringify({ token, env: apnsEnv, tz: Number(tz) || 0 })
+      JSON.stringify({ token, env: apnsEnv, tz: tzNum })
     );
     return new Response("registered", { status: 200 });
   },
@@ -68,7 +79,7 @@ export default {
   // revivals a day at its own waking hours — well within the push-to-start
   // budget, and never at 3am.
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(sendStartPushes(env, { onlyAtLocalHours: true }));
+    ctx.waitUntil(sendStartPushes(env));
   },
 };
 
@@ -77,9 +88,8 @@ export default {
 // opened — the practical ceiling given iOS forces a notification per push.
 const REVIVAL_LOCAL_HOURS = [8, 13, 18, 22];
 
-async function sendStartPushes(env, { report = false, onlyAtLocalHours = false } = {}) {
+async function sendStartPushes(env) {
   const jwtByEnv = {}; // cache one signed JWT per APNs host for this run
-  const results = [];
   const utcHour = new Date().getUTCHours();
   let cursor;
   do {
@@ -93,19 +103,15 @@ async function sendStartPushes(env, { report = false, onlyAtLocalHours = false }
       if (!host) continue;
 
       // Only revive when it's a target hour in THIS device's timezone.
-      if (onlyAtLocalHours) {
-        const localHour = ((utcHour + Math.round((rec.tz || 0) / 60)) % 24 + 24) % 24;
-        if (!REVIVAL_LOCAL_HOURS.includes(localHour)) continue;
-      }
+      const localHour = ((utcHour + Math.round((rec.tz || 0) / 60)) % 24 + 24) % 24;
+      if (!REVIVAL_LOCAL_HOURS.includes(localHour)) continue;
 
       if (!jwtByEnv[rec.env]) {
         jwtByEnv[rec.env] = await makeAPNsJWT(env);
       }
-      const r = await pushStart(host, jwtByEnv[rec.env], rec.token, env, key.name);
-      if (report) results.push({ install: key.name, env: rec.env, ...r });
+      await pushStart(host, jwtByEnv[rec.env], rec.token, env, key.name);
     }
   } while (cursor);
-  return results;
 }
 
 // The push-to-start payload. `event: "start"` tells iOS to CREATE the activity.
@@ -158,9 +164,6 @@ async function pushStart(host, jwt, deviceToken, env, install) {
   if (res.status === 410) {
     await env.TOKENS.delete(install);
   }
-  // APNs returns 200 empty on success, or JSON { reason } on failure.
-  const reason = res.status === 200 ? "" : await res.text();
-  return { status: res.status, apnsId: res.headers.get("apns-id") || "", reason };
 }
 
 // ---- APNs token auth (ES256 JWT), signed with the .p8 key -----------------
@@ -213,3 +216,71 @@ function isoNow() {
 function localDay() {
   return new Date().toISOString().slice(0, 10);
 }
+
+// ---- privacy policy page --------------------------------------------------
+const PRIVACY_HTML = `<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wasted — Privacy Policy</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { max-width: 44rem; margin: 3rem auto; padding: 0 1.25rem;
+    font: 17px/1.6 -apple-system, system-ui, sans-serif;
+    color: #1c1c1e; background: #fff; }
+  @media (prefers-color-scheme: dark) { body { color: #e7e5e0; background: #0a0a0a; } }
+  h1 { font-size: 1.9rem; } h2 { font-size: 1.15rem; margin-top: 2rem; }
+  .lede { font-size: 1.05rem; opacity: .8; }
+  a { color: #d63a2f; }
+  footer { margin-top: 3rem; opacity: .6; font-size: .9rem; }
+</style></head><body>
+<h1>Wasted — Privacy Policy</h1>
+<p class="lede">Wasted is built so that we cannot see your data. This policy is
+short because there is almost nothing to disclose.</p>
+
+<h2>The one-sentence version</h2>
+<p>Your screen-time data is processed entirely on your device and is never
+transmitted to us or anyone else. The only thing that leaves your device is an
+anonymous Apple push token (and your timezone), used solely to keep the Live
+Activity on your Lock Screen and Dynamic Island alive — it carries none of
+your usage.</p>
+
+<h2>What the app accesses</h2>
+<p><strong>Screen Time</strong> (Apple's FamilyControls / DeviceActivity
+frameworks). With your permission, iOS reports usage thresholds for the apps
+you select. Wasted counts your time; it cannot read your content, messages, or
+browsing.</p>
+
+<h2>Where your data lives</h2>
+<p>All usage records, settings, and history are stored in the app's private
+container on your device. There is no account and no cloud sync. Deleting the
+app deletes this data.</p>
+
+<h2>What we collect</h2>
+<p>No usage data, ever. No analytics, no advertising identifiers, no tracking,
+no third-party SDKs, no account.</p>
+
+<h2>The one thing that leaves your device: a push token</h2>
+<p>To keep the counter on your Lock Screen and Dynamic Island alive when the
+app isn't open, Apple's Live Activity system requires a small server to send
+scheduled "wake up" pushes. For that, the app sends one anonymous Apple Push
+Notification token, a random install identifier, and your timezone offset to
+our push server. The token is an opaque delivery address issued by Apple; it
+is not linked to your name, Apple ID, or device identity, and it contains none
+of your usage. The "wake up" push we send back is empty — your device fills in
+the number locally. This data is discarded when you delete the app.</p>
+
+<h2>Purchases</h2>
+<p>Wasted Pro is sold through Apple's App Store. Apple processes your payment;
+we never see your payment details.</p>
+
+<h2>Your rights</h2>
+<p>Rights of access, correction, and deletion apply to data an organisation
+holds about you. We hold no usage data. Everything the app creates is on your
+device, under your control, and destroyed by deleting the app.</p>
+
+<h2>Contact</h2>
+<p><a href="mailto:singhsanskar2000@gmail.com">singhsanskar2000@gmail.com</a></p>
+
+<footer>Effective 2026. Sanskar Singh.</footer>
+</body></html>`;

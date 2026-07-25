@@ -1,6 +1,14 @@
 import StoreKit
 import SwiftUI
 
+// The two legal links the App Store requires on a subscription paywall.
+// Terms is Apple's standard EULA (used because the app makes no custom
+// terms); privacy is the policy served by the push worker.
+enum LegalLinks {
+    static let termsURL = "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/"
+    static let privacyURL = "https://wasted-push.singhsanskar2000.workers.dev/privacy"
+}
+
 // The paywall sells ONE thing — the mirror's memory — and says so plainly.
 // No countdown, no fake discount, no preselected tricks: the mirror doesn't
 // lie about time, so it doesn't get to lie about money. The daily mirror is
@@ -47,9 +55,20 @@ struct PaywallView: View {
                             .foregroundStyle(Color.ink.opacity(0.3))
                     }
                     .padding(.top, 6)
+
+                    // Required for auto-renewable subscriptions (App Store
+                    // Guideline 3.1.2) — Apple's standard EULA and the hosted
+                    // privacy policy.
+                    HStack(spacing: 18) {
+                        Link("terms", destination: URL(string: LegalLinks.termsURL)!)
+                        Link("privacy", destination: URL(string: LegalLinks.privacyURL)!)
+                    }
+                    .font(.system(size: 12, weight: .light))
+                    .foregroundStyle(Color.ink.opacity(0.28))
+                    .padding(.top, 10)
                 }
                 .padding(.horizontal, 32)
-                .padding(.bottom, 44)
+                .padding(.bottom, 40)
             }
         }
         .task { await store.load() }

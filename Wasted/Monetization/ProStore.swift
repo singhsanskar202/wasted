@@ -2,15 +2,13 @@ import Combine
 import Foundation
 import StoreKit
 
-// Pro = the mirror's memory, three ways to buy it: monthly, yearly (with the
-// App Store introductory offer as the trial), or once, forever. Any verified
-// entitlement to any of the three unlocks the same single thing.
+// Pro = the mirror's memory, bought once, forever. Monthly/yearly subscriptions
+// were built and then pulled before launch (Sanskar's call) — lifetime only for
+// now. The subscription plumbing can come back by re-adding the product IDs.
 @MainActor
 final class ProStore: ObservableObject {
     static let shared = ProStore()
 
-    @Published var monthly: Product?
-    @Published var yearly: Product?
     @Published var lifetime: Product?
     @Published var isUnlocked: Bool
     @Published var isPurchasing = false
@@ -18,11 +16,7 @@ final class ProStore: ObservableObject {
     private let store = UsageStore()
     private var updatesTask: Task<Void, Never>?
 
-    private static let productIDs = [
-        AppGroupKeys.monthlyProductID,
-        AppGroupKeys.yearlyProductID,
-        AppGroupKeys.lifetimeProductID,
-    ]
+    private static let productIDs = [AppGroupKeys.lifetimeProductID]
 
     var isPro: Bool { ProGate.isPro(unlocked: isUnlocked) }
 
@@ -41,14 +35,10 @@ final class ProStore: ObservableObject {
 
     func load() async {
         let products = (try? await Product.products(for: Self.productIDs)) ?? []
-        monthly = products.first { $0.id == AppGroupKeys.monthlyProductID }
-        yearly = products.first { $0.id == AppGroupKeys.yearlyProductID }
         lifetime = products.first { $0.id == AppGroupKeys.lifetimeProductID }
         await refreshEntitlement()
     }
 
-    // Runs on every load() — which HomeView performs once per launch — so an
-    // expired subscription is caught the next time the app opens, not never.
     func refreshEntitlement() async {
         var unlocked = false
         for await result in Transaction.currentEntitlements {

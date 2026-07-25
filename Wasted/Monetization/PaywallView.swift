@@ -41,24 +41,22 @@ struct PaywallView: View {
                 Spacer()
 
                 VStack(spacing: 12) {
-                    // Yearly leads: it's the honest best value, and its intro
-                    // offer — when configured — is the app's only trial.
-                    purchaseButton(filled: true, label: yearlyLabel, product: store.yearly)
-                    purchaseButton(filled: false, label: lifetimeLabel, product: store.lifetime)
-                    purchaseButton(filled: false, label: monthlyLabel, product: store.monthly)
+                    // One purchase: pay once, own it forever. No subscription,
+                    // no streak to protect — the product's whole posture.
+                    purchaseButton(filled: true, label: lifetimeLabel, product: store.lifetime)
 
                     Button {
                         Task { await store.restore() }
                     } label: {
-                        Text("restore purchases")
+                        Text("restore purchase")
                             .font(.system(size: 13, weight: .light))
                             .foregroundStyle(Color.ink.opacity(0.3))
                     }
                     .padding(.top, 6)
 
-                    // Required for auto-renewable subscriptions (App Store
-                    // Guideline 3.1.2) — Apple's standard EULA and the hosted
-                    // privacy policy.
+                    // Apple's standard EULA + the hosted privacy policy. Good
+                    // practice and expected in the listing even for a one-time
+                    // purchase.
                     HStack(spacing: 18) {
                         Link("terms", destination: URL(string: LegalLinks.termsURL)!)
                         Link("privacy", destination: URL(string: LegalLinks.privacyURL)!)
@@ -99,35 +97,8 @@ struct PaywallView: View {
         .opacity(product == nil ? 0.4 : 1)
     }
 
-    // Labels state the real terms or nothing. The trial line only appears if
-    // App Store Connect actually has a free introductory offer configured —
-    // promising "7 days free" from copy alone would eventually be a lie.
-    private var yearlyLabel: String {
-        guard let yearly = store.yearly else { return "loading…" }
-        if let offer = yearly.subscription?.introductoryOffer, offer.paymentMode == .freeTrial {
-            return "\(trialLength(of: offer)) free, then \(yearly.displayPrice)/year"
-        }
-        return "\(yearly.displayPrice)/year"
-    }
-
-    private var monthlyLabel: String {
-        guard let monthly = store.monthly else { return "loading…" }
-        return "or \(monthly.displayPrice)/month"
-    }
-
     private var lifetimeLabel: String {
         guard let lifetime = store.lifetime else { return "loading…" }
         return "own it forever — \(lifetime.displayPrice)"
-    }
-
-    private func trialLength(of offer: Product.SubscriptionOffer) -> String {
-        let period = offer.period
-        switch period.unit {
-        case .day:   return "\(period.value) days"
-        case .week:  return "\(period.value * 7) days"
-        case .month: return period.value == 1 ? "1 month" : "\(period.value) months"
-        case .year:  return period.value == 1 ? "1 year" : "\(period.value) years"
-        @unknown default: return "\(period.value)"
-        }
     }
 }

@@ -95,14 +95,10 @@ enum AppGroupKeys {
     static let awakeDayHours = 16
     static let receiptHour = 21
 
-    // Purchase. `lifetimeUnlockedKey` now means "Pro is unlocked by ANY
-    // product" — the key string is unchanged so a beta lifetime purchase made
-    // under the old name stays unlocked.
+    // Purchase — lifetime only for now (subscriptions pulled before launch).
     static let firstLaunchKey = "first_launch_at"
     static let lifetimeUnlockedKey = "lifetime_unlocked"
     static let lifetimeProductID = "com.sanskar.Wasted.lifetime"
-    static let monthlyProductID = "com.sanskar.Wasted.pro.monthly"
-    static let yearlyProductID = "com.sanskar.Wasted.pro.yearly"
     // The uncapped day-by-day record behind the long receipt (Pro). Written
     // once at midnight, read only when the history screen opens — NEVER on the
     // home screen's five-second tick, which stays on the 7-day rolling window.

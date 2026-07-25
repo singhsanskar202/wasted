@@ -74,7 +74,7 @@ your current rate costs in days per year. And the habit bell: when your
 costliest window keeps repeating, a notification arrives as it OPENS —
 "9pm–11pm. 5 of the last 7 nights, about 41m a time. today isn't written
 yet." Screen time apps report your past. This one shows up before it
-happens again. Monthly, yearly, or yours forever with one purchase.
+happens again. Yours forever with a single purchase — no subscription.
 
 PRIVATE BY ARCHITECTURE
 Everything is computed on your device. No account, no analytics, no
@@ -84,14 +84,13 @@ wanted to. Wasted counts only the apps you pick.
 Is this how you want to spend your one life?
 ```
 
-Subscription boilerplate (required for auto-renewable subs — append):
+Purchase note (lifetime only — no subscription boilerplate needed):
 
 ```
-Wasted Pro subscriptions renew automatically unless cancelled at least
-24 hours before the end of the period. Manage or cancel in your App
-Store account settings.
-Terms of Use: [EULA link — Apple standard EULA is fine]
-Privacy Policy: [hosted privacy-policy link]
+Wasted Pro is a one-time purchase. Buy it once and it's yours — no
+subscription, nothing to renew or cancel.
+Terms of Use: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
+Privacy Policy: https://wasted-push.singhsanskar2000.workers.dev/privacy
 ```
 
 ## Keywords (100 chars max, comma-separated, no spaces; don't repeat name/subtitle words)
@@ -150,16 +149,16 @@ The com.apple.developer.family-controls (distribution) entitlement was
 granted for com.sanskar.Wasted and com.sanskar.Wasted.DeviceActivityMonitorExt.
 To test: complete onboarding, grant Screen Time permission, select 1-2
 apps, use them briefly; the count appears on the home screen, island
-and widget. Pro ("The Long Receipt") is a freemium unlock: monthly,
-yearly (7-day intro offer), or lifetime.
+and widget. Pro ("The Long Receipt") is a freemium unlock: a single
+one-time lifetime purchase.
 ```
 
 ## Launch checklist (ASC side)
 
 - [ ] Fix app record display name ("Wastedd" → chosen name)
 - [ ] Distribution entitlement CONFIRMED granted (blocker — check email)
-- [ ] Create 3 IAPs: pro.monthly ($1.99), pro.yearly ($14.99 + 7-day free
-      intro offer), lifetime ($29.99) — IDs already in code
+- [ ] Create 1 non-consumable IAP: `com.sanskar.Wasted.lifetime` (~$29.99) —
+      ID already in code. (Subscriptions pulled; lifetime only for launch.)
 - [ ] Enroll Small Business Program (85% cut)
 - [ ] Host privacy policy (docs/privacy-policy.md → GitHub Pages)
 - [ ] Privacy nutrition label: "Data Not Collected" (true — verify no

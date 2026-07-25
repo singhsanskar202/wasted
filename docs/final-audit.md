@@ -10,12 +10,12 @@ account/ASC steps, not code defects.**
    + report plumbing removed and redeployed (POST → 404 verified). `/register`
    now strictly validates token/install/env/tz shape (junk → 400 verified).
 
-2. **Paywall is off and its products don't exist yet** — the one remaining
-   real blocker, and it's an ASC task. Create the 3 IAPs (`pro.monthly`,
-   `pro.yearly` + 7-day intro, `lifetime`) → flip `ProGate.paywallEnabled` →
-   update the tripwire test in ProGateTests. NOTE: flipping that one flag now
-   ALSO removes the diagnostics button (they're gated together), so this is the
-   single switch for "ship mode".
+2. **Paywall is off and its product doesn't exist yet** — the one remaining
+   real blocker, and it's an ASC task. Monetization is now LIFETIME ONLY
+   (subscriptions pulled 2026-07-25): create ONE non-consumable IAP
+   `com.sanskar.Wasted.lifetime` → flip `ProGate.paywallEnabled` → update the
+   tripwire test in ProGateTests. NOTE: flipping that one flag ALSO removes the
+   diagnostics button (gated together) — the single switch for "ship mode".
 
 3. ~~Beta "send diagnostics" button~~ — **FIXED 2026-07-25.** Now gated on
    `!ProGate.paywallEnabled`, so it disappears automatically when the paywall

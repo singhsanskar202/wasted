@@ -71,17 +71,19 @@ enum NudgeCopy {
         }
     }
 
-    // Flat facts and redirects. Lowercase, no exclamation points, no guilt —
-    // the mirror doesn't scold, it just refuses to look away. IDs are stable
-    // and unique across tiers: they're what the day's used-line set stores.
+    // Flat facts, sharpened. Lowercase, no exclamation points — the mirror
+    // doesn't shout and it doesn't advise (no "put it down", no "back to it"),
+    // it just refuses to look away and says the quiet part. IDs are stable and
+    // unique across tiers: they're what the day's used-line set stores.
     static let opening: [Line] = [
-        Line(id: 0,  text: "that's enough for now — back to it?"),
-        Line(id: 1,  text: "you opened it for a reason. was this it?"),
+        Line(id: 0,  text: "you opened it for a reason. this wasn't it."),
+        Line(id: 1,  text: "you're not even enjoying this."),
         Line(id: 2,  text: "still worth it?"),
-        Line(id: 3,  text: "the count doesn't pause. you can."),
+        Line(id: 3,  text: "the count doesn't stop for this."),
         Line(id: 4,  text: "nothing new since you last checked."),
         Line(id: 5,  text: "this is the part you won't remember tomorrow."),
-        Line(id: 6,  text: "just so you know."),
+        Line(id: 6,  text: "you're killing time. it doesn't come back."),
+        Line(id: 7,  text: "just so it's on the record."),
     ]
 
     static let settling: [Line] = [
@@ -90,16 +92,18 @@ enum NudgeCopy {
         Line(id: 12, text: "you said one more minute a while ago."),
         Line(id: 13, text: "you could have finished something by now."),
         Line(id: 14, text: "you've already seen this feed."),
-        Line(id: 15, text: "nobody is making you stay."),
+        Line(id: 15, text: "no one is doing this to you."),
+        Line(id: 16, text: "an hour of your life, handed to a feed."),
     ]
 
     static let deep: [Line] = [
         Line(id: 20, text: "this is what the day went to."),
         Line(id: 21, text: "you're not choosing this anymore. you're just not leaving."),
         Line(id: 22, text: "you don't get this back."),
-        Line(id: 23, text: "put it down. the number stays either way."),
+        Line(id: 23, text: "you already know how this feels tomorrow."),
         Line(id: 24, text: "you'd be furious if someone took this much from you."),
-        Line(id: 25, text: "this is your evening now."),
+        Line(id: 25, text: "hours. you spent hours here."),
+        Line(id: 26, text: "you'll wonder where the day went. it went here."),
     ]
 
     // Appended below a nudge's line when the Live Activity has died and only a
@@ -120,9 +124,18 @@ enum NudgeCopy {
     // an intention mid-day at worst re-arms one line — acceptable.
     static let personalLineBase = 100
 
-    static func personalLines(_ intentions: [String]) -> [Line] {
+    // Tier-aware: a light hour gets a quiet reminder of their own words; two
+    // hours in, the same words come back as an accusation — the aspiration set
+    // against the thing they're actually doing. The colon quotes any phrase
+    // verbatim (no conjugation), so both templates read correctly whether the
+    // user wrote "play the ukulele", "read more", or "learn something new". IDs
+    // stay positional so a phrase is never nudged twice in a day across tiers.
+    static func personalLines(_ intentions: [String], deep: Bool = false) -> [Line] {
         intentions.prefix(3).enumerated().map { index, phrase in
-            Line(id: personalLineBase + index, text: "you said: \(phrase).")
+            let text = deep
+                ? "you said: \(phrase). you're doing this instead."
+                : "you said: \(phrase)."
+            return Line(id: personalLineBase + index, text: text)
         }
     }
 
@@ -147,7 +160,7 @@ enum NudgeCopy {
         intentions: [String] = [],
         pick: ([Line]) -> Line? = { $0.randomElement() }
     ) -> Line {
-        let pool = Tier(minutes: minutes).lines + personalLines(intentions)
+        let pool = Tier(minutes: minutes).lines + personalLines(intentions, deep: Tier(minutes: minutes) == .deep)
         let unused = pool.filter { !used.contains($0.id) }
         // Pool exhausted: reuse it rather than fall silent or reach for a line
         // written for a different hour of the day.

@@ -17,6 +17,28 @@ final class PersonalNudgeTests: XCTestCase {
         XCTAssertEqual(NudgeCopy.personalLines(["a", "b", "c", "d"]).count, 3)
     }
 
+    // Two hours in, the same words come back as an accusation — the aspiration
+    // against what they're actually doing. Same positional ID as the quiet one,
+    // so a phrase is never nudged twice in a day across tiers.
+    func test_personalLines_deepTierIsAnAccusation() {
+        let quiet = NudgeCopy.personalLines(["play the ukulele"], deep: false)
+        let deep = NudgeCopy.personalLines(["play the ukulele"], deep: true)
+        XCTAssertEqual(quiet.map(\.text), ["you said: play the ukulele."])
+        XCTAssertEqual(deep.map(\.text), ["you said: play the ukulele. you're doing this instead."])
+        XCTAssertEqual(quiet.map(\.id), deep.map(\.id))
+    }
+
+    // A deep-hour nudge with an intention pulls the accusatory variant.
+    func test_next_deepHourUsesTheAccusation() {
+        let line = NudgeCopy.next(
+            minutes: 180,
+            used: [],
+            intentions: ["play the ukulele"],
+            pick: { pool in pool.max { $0.id < $1.id } }
+        )
+        XCTAssertEqual(line.text, "you said: play the ukulele. you're doing this instead.")
+    }
+
     func test_personalLines_joinTheRotation() {
         // Deterministic pick: always the highest id, so the personal line is
         // chosen the moment it's in the unused pool.

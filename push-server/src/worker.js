@@ -42,6 +42,17 @@ export default {
     if (request.method !== "POST") return new Response("ok", { status: 200 });
     if (url.pathname !== "/register") return new Response("not found", { status: 404 });
 
+    // Per-IP rate limit. The endpoint is public and unauthenticated, so cap how
+    // fast one source can create records — otherwise an attacker floods the KV
+    // store with valid-shaped junk (unique install UUIDs), and every hourly cron
+    // then fans out APNs pushes for all of it, eventually starving real devices.
+    // Counter keys are prefixed `rl:`, expire on their own, and the cron skips them.
+    const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+    const rlKey = `rl:${ip}`;
+    const rlCount = Number(await env.TOKENS.get(rlKey)) || 0;
+    if (rlCount >= 20) return new Response("rate limited", { status: 429 });
+    await env.TOKENS.put(rlKey, String(rlCount + 1), { expirationTtl: 60 });
+
     let body;
     try {
       body = await request.json();
@@ -97,6 +108,8 @@ async function sendStartPushes(env) {
     cursor = page.list_complete ? undefined : page.cursor;
 
     for (const key of page.keys) {
+      // Rate-limit counters share this KV; they are not device records.
+      if (key.name.startsWith("rl:")) continue;
       const rec = await env.TOKENS.get(key.name, "json");
       if (!rec) continue;
       const host = APNS_HOSTS[rec.env];
@@ -109,7 +122,7 @@ async function sendStartPushes(env) {
       if (!jwtByEnv[rec.env]) {
         jwtByEnv[rec.env] = await makeAPNsJWT(env);
       }
-      await pushStart(host, jwtByEnv[rec.env], rec.token, env, key.name);
+      await pushStart(host, jwtByEnv[rec.env], rec.token, env, key.name, rec.tz);
     }
   } while (cursor);
 }
@@ -118,7 +131,7 @@ async function sendStartPushes(env) {
 // content-state is a placeholder; the app's Live Activity view reads the real
 // total from the App Group at render time (max(pushed, pulled)), so 0 here just
 // means "the app will fill it in".
-async function pushStart(host, jwt, deviceToken, env, install) {
+async function pushStart(host, jwt, deviceToken, env, install, tz) {
   const now = Math.floor(Date.now() / 1000);
   const payload = {
     aps: {
@@ -134,7 +147,7 @@ async function pushStart(host, jwt, deviceToken, env, install) {
       // attributes carry Dates, so both must be numeric.
       "content-state": { totalSeconds: 0, confirmedAt: now },
       "attributes-type": "TimeTrackerAttributes",
-      attributes: { day: localDay(), startedAt: now },
+      attributes: { day: localDay(tz), startedAt: now },
       "stale-date": now + 8 * 3600,
       // REQUIRED: iOS rejects a push-to-start with no alert ("Received start
       // without an alert configuration"). Both title and body must be
@@ -160,9 +173,20 @@ async function pushStart(host, jwt, deviceToken, env, install) {
     body: JSON.stringify(payload),
   });
 
-  // 410 = the token is dead (app uninstalled) — drop it so we stop trying.
+  // Prune dead tokens so junk can't accumulate and the cron doesn't retry it
+  // forever. 410 = Unregistered (app uninstalled). 400 = permanent token errors
+  // (BadDeviceToken / DeviceTokenNotForTopic) — the signature of flooded junk.
+  // Other 400s are our own payload bugs, so don't delete a good token for those.
   if (res.status === 410) {
     await env.TOKENS.delete(install);
+  } else if (res.status === 400) {
+    const reason = await res
+      .json()
+      .then((b) => b && b.reason)
+      .catch(() => "");
+    if (reason === "BadDeviceToken" || reason === "DeviceTokenNotForTopic") {
+      await env.TOKENS.delete(install);
+    }
   }
 }
 
@@ -209,12 +233,13 @@ function b64urlBytes(bytes) {
 function isoNow() {
   return new Date().toISOString();
 }
-// The activity's `day` must match the device's local day for the view's
-// midnight reset. Cron runs in UTC; this uses UTC day, which is close enough
-// for a placeholder the app immediately re-anchors. (For strict correctness a
-// future version can store each device's timezone.)
-function localDay() {
-  return new Date().toISOString().slice(0, 10);
+// The activity's `day` must match the device's LOCAL day, or the island view's
+// midnight check (attributes.day vs the device's local day string) never matches
+// and the card reads 0m. The cron runs in UTC, so shift by the device's stored
+// timezone offset (minutes) before taking the calendar date.
+function localDay(tzOffsetMinutes = 0) {
+  const local = new Date(Date.now() + (Number(tzOffsetMinutes) || 0) * 60 * 1000);
+  return local.toISOString().slice(0, 10);
 }
 
 // ---- privacy policy page --------------------------------------------------

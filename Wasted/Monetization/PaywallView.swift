@@ -18,6 +18,19 @@ struct PaywallView: View {
     @ObservedObject var store: ProStore
     @Environment(\.dismiss) private var dismiss
 
+    // The App Store can't load a product — sandbox timing, an agreement not yet
+    // active, no network. Apple rejected 1.1(5) for exactly this: on an iPad the
+    // Pro page "loaded indefinitely" because the button sat on "loading…" with no
+    // way out. So the load is a small state machine with a hard timeout, and the
+    // screen ALWAYS has a close button. A paywall the user can't leave is a bug
+    // before it's ever a sale.
+    private enum LoadPhase { case loading, ready, failed }
+    @State private var phase: LoadPhase = .loading
+
+    // StoreKit's product fetch can hang with no network; never let the spinner
+    // outlive this.
+    private static let loadTimeout: UInt64 = 15_000_000_000 // 15s
+
     var body: some View {
         ZStack {
             Color.canvas.ignoresSafeArea()
@@ -41,9 +54,7 @@ struct PaywallView: View {
                 Spacer()
 
                 VStack(spacing: 12) {
-                    // One purchase: pay once, own it forever. No subscription,
-                    // no streak to protect — the product's whole posture.
-                    purchaseButton(filled: true, label: lifetimeLabel, product: store.lifetime)
+                    purchaseArea
 
                     Button {
                         Task { await store.restore() }
@@ -69,10 +80,70 @@ struct PaywallView: View {
                 .padding(.bottom, 40)
             }
         }
-        .task { await store.load() }
+        // Always an exit. Presented as a sheet, but a reviewer (or a user on a
+        // flaky connection) must never be trapped waiting on the store.
+        .overlay(alignment: .topTrailing) {
+            Button { dismiss() } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(Color.ink.opacity(0.4))
+                    .padding(14)
+                    .contentShape(Rectangle())
+            }
+            .padding(.top, 6)
+            .padding(.trailing, 6)
+            .accessibilityLabel("close")
+        }
+        .task { await loadProducts() }
         .onChange(of: store.isUnlocked) { _, unlocked in
             if unlocked { dismiss() }
         }
+    }
+
+    // The purchase control, by phase: the real button once the product is here,
+    // a brief "loading…", or an honest failure with a way to retry — never an
+    // endless spinner.
+    @ViewBuilder
+    private var purchaseArea: some View {
+        switch phase {
+        case .ready:
+            // One purchase: pay once, own it forever. No subscription, no streak
+            // to protect — the product's whole posture.
+            purchaseButton(filled: true, label: lifetimeLabel, product: store.lifetime)
+        case .loading:
+            purchaseButton(filled: true, label: "loading…", product: nil)
+        case .failed:
+            VStack(spacing: 10) {
+                Text("couldn't reach the store. check your connection.")
+                    .font(.system(size: 13, weight: .light))
+                    .foregroundStyle(Color.inkFaint)
+                    .multilineTextAlignment(.center)
+                Button { Task { await loadProducts() } } label: {
+                    Text("try again")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(Color.ink.opacity(0.85))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(Color.ink.opacity(0.22), lineWidth: 1)
+                        )
+                }
+            }
+        }
+    }
+
+    private func loadProducts() async {
+        phase = .loading
+        // Race the fetch against a timeout: whichever finishes first wins, so a
+        // StoreKit call that never returns can't pin the screen on "loading…".
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await store.load() }
+            group.addTask { try? await Task.sleep(nanoseconds: Self.loadTimeout) }
+            await group.next()
+            group.cancelAll()
+        }
+        phase = store.lifetime == nil ? .failed : .ready
     }
 
     @ViewBuilder

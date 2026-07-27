@@ -265,7 +265,12 @@ final class UsageStore {
     /// the rolling window supersedes the archive and today's live record
     /// supersedes both.
     func loadFullHistory() -> [DailyUsage] {
-        loadArchive() + loadHistory() + [loadTodayUsage()]
+        // Today comes from ONE source — the live record, appended last. The
+        // archive can still hold a partial today from a mid-day stop (see
+        // loadHistory); strip today from the past portion so it isn't counted
+        // twice, then append the live record as the single source of truth.
+        let today = DailyUsage.todayString()
+        return (loadArchive() + loadHistory()).filter { $0.date != today } + [loadTodayUsage()]
     }
 
     func loadHistory() -> [DailyUsage] {
@@ -273,7 +278,15 @@ final class UsageStore {
             let data = defaults.data(forKey: AppGroupKeys.historyKey),
             let history = try? JSONDecoder().decode([DailyUsage].self, from: data)
         else { return [] }
-        return history.sorted { $0.date < $1.date }
+        // History is DEFINED as the days before today (see archiveToHistory).
+        // But intervalDidEnd — the only writer — fires on EVERY stopMonitoring,
+        // not just at midnight: a mid-day re-registration (schema refresh,
+        // selection edit, reviving a dead monitor) archives a partial "today"
+        // into this list. HomeView builds its week as history.suffix(6) + [today],
+        // so a stray today here would be counted twice. Enforce the contract on
+        // read: today never belongs in history — the live record is its home.
+        let today = DailyUsage.todayString()
+        return history.filter { $0.date != today }.sorted { $0.date < $1.date }
     }
 
     func loadYesterday() -> DailyUsage? {

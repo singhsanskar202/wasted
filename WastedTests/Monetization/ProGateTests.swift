@@ -75,6 +75,38 @@ final class ProGateTests: XCTestCase {
         XCTAssertEqual(store.loadArchive().last?.totalSeconds(for: "0"), 42)
     }
 
+    // A mid-day re-registration (schema refresh, selection edit, reviving a
+    // dead monitor) makes intervalDidEnd archive a PARTIAL today into history.
+    // loadHistory must never hand that back — HomeView adds today separately, so
+    // a stray today here double-counts the week. (Device log 2026-07-27: the
+    // monitor died at 06:46 and froze the day; the revival fix re-registers on
+    // foreground, which is exactly the mid-day stop that can leak a partial today.)
+    func test_loadHistory_neverContainsToday_soTheWeekCantDoubleCount() {
+        let suiteName = "ProGateTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = UsageStore(defaults: defaults)
+
+        var realYesterday = DailyUsage(date: "2000-01-01")
+        realYesterday.add(seconds: 3600, for: "0")
+        store.archiveToHistory(realYesterday)
+
+        // A partial "today" leaked in by a mid-day stop.
+        var partialToday = DailyUsage(date: DailyUsage.todayString())
+        partialToday.add(seconds: 60, for: "0")
+        store.archiveToHistory(partialToday)
+
+        // History excludes today entirely…
+        let history = store.loadHistory()
+        XCTAssertFalse(history.contains { $0.date == DailyUsage.todayString() },
+                       "today must never appear in history")
+        XCTAssertTrue(history.contains { $0.date == "2000-01-01" })
+
+        // …and today appears exactly once in the full history (the live record).
+        let todays = store.loadFullHistory().filter { $0.date == DailyUsage.todayString() }
+        XCTAssertEqual(todays.count, 1, "today must appear once, from the live record")
+    }
+
     func test_fullHistory_endsWithTodayLiveRecord() {
         let suiteName = "ProGateTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

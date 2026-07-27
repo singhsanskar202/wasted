@@ -27,11 +27,31 @@ final class ActivityScheduler: ObservableObject {
     func refreshRegistrationIfNeeded() {
         guard
             let defaults = UserDefaults(suiteName: AppGroupKeys.appGroupID),
-            defaults.integer(forKey: Self.registrationVersionKey) != Self.registrationSchemaVersion,
             let data = defaults.data(forKey: AppGroupKeys.trackedSelectionKey),
             let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: data),
             !selection.applications.isEmpty
         else { return }
+
+        let schemaStale = defaults.integer(forKey: Self.registrationVersionKey) != Self.registrationSchemaVersion
+
+        // REVIVE A DEAD MONITOR. A repeating DeviceActivity interval can end
+        // mid-day — a device reboot, or iOS evicting the monitor under memory
+        // pressure — and iOS will NOT restart it until the next midnight. The
+        // whole day then freezes: no thresholds fire, the number sits still.
+        // (Device log 2026-07-27: intervalDidEnd fired at 06:46, and the count
+        // stuck at 1m for the rest of the day. The user opened the app three
+        // times afterward and nothing recovered, because we only re-registered
+        // on a schema change.) So whenever our activity is no longer among the
+        // ones being monitored, re-register on foreground. Because every event
+        // uses includesPastActivity, this also BACKFILLS the usage missed while
+        // the monitor was down — the day heals instead of staying lost.
+        let monitoringDown = !center.activities.contains(.wastedDaily)
+
+        guard schemaStale || monitoringDown else { return }
+
+        if monitoringDown && !schemaStale {
+            EventLog.error(.monitor, "monitor was DOWN on foreground — interval ended early (reboot/eviction); re-registering to revive + backfill the day")
+        }
         startMonitoring(selection: selection)
     }
 

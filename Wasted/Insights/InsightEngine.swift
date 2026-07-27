@@ -218,7 +218,12 @@ enum InsightEngine {
         let days = Array(history.suffix(7))
         let totals = days.map { $0.hourly.reduce(0, +) }
         let labels = days.map { usage -> String in
+            // Parse with en_US_POSIX + Gregorian so it matches how the key was
+            // written; otherwise a non-Gregorian device fails to parse and every
+            // weekday label collapses to "?".
             let f = DateFormatter()
+            f.locale = Locale(identifier: "en_US_POSIX")
+            f.calendar = Calendar(identifier: .gregorian)
             f.dateFormat = "yyyy-MM-dd"
             guard let date = f.date(from: usage.date) else { return "?" }
             let d = DateFormatter()

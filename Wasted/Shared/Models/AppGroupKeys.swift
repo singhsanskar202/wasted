@@ -77,7 +77,14 @@ enum AppGroupKeys {
     // day it's being rendered on. If they differ, the day is over and the card
     // reads 0m. That is the whole midnight reset — no background task, no luck.
     static func dayString(_ date: Date = Date()) -> String {
+        // en_US_POSIX + Gregorian: this string is compared against the activity's
+        // `day` (including push-created islands, whose `day` the server writes as a
+        // Gregorian date). A non-Gregorian device locale would render a year that
+        // never matches, and the island's midnight check would read every render as
+        // a new day and show 0m. Must agree with DailyUsage.dateString.
         let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.string(from: date)
     }

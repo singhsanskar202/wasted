@@ -60,15 +60,52 @@ final class UsageStore {
     }
 
     func save(_ usage: DailyUsage) {
+        withUsageLock { writeUsage(usage) }
+    }
+
+    // Raw write, NO lock. Callers already holding withUsageLock use this so they
+    // don't re-enter flock on a second descriptor and self-deadlock.
+    private func writeUsage(_ usage: DailyUsage) {
         guard let data = try? JSONEncoder().encode(usage) else { return }
         defaults.set(data, forKey: AppGroupKeys.dailyUsageKey)
     }
 
     func addSeconds(_ value: Int, for bundleId: String) {
-        var usage = loadTodayUsage()
-        usage.add(seconds: value, for: bundleId)
-        save(usage)
+        withUsageLock {
+            var usage = loadTodayUsage()
+            usage.add(seconds: value, for: bundleId)
+            writeUsage(usage)
+        }
     }
+
+    // CROSS-PROCESS WRITE LOCK for the day record.
+    //
+    // The monitor extension (a threshold every minute) and the main app
+    // (foreground heal, the sim seed) both load→modify→save `dailyUsageKey`, and
+    // UserDefaults offers no transaction across processes — so without this they
+    // can clobber each other and drop a minute or a reset. An flock on a file in
+    // the shared container serialises the read-modify-write. Held only for the
+    // brief mutation; a crashed holder releases it when its fd closes. NOT
+    // reentrant — never call one locked method from inside another.
+    @discardableResult
+    private func withUsageLock<T>(_ body: () -> T) -> T {
+        guard let path = Self.lockURL?.path else { return body() }
+        let fd = open(path, O_WRONLY | O_CREAT, 0o644)
+        guard fd >= 0 else { return body() }
+        defer { close(fd) }
+        guard flock(fd, LOCK_EX) == 0 else { return body() }
+        defer { flock(fd, LOCK_UN) }
+        return body()
+    }
+
+    private static let lockURL: URL? = {
+        guard let container = FileManager.default
+            .containerURL(forSecurityApplicationGroupIdentifier: AppGroupKeys.appGroupID)
+        else { return nil }
+        let dir = container.appendingPathComponent("Library/Caches", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("usage-write.lock")
+    }()
 
     // Headline total = whichever source is further ahead: the combined series
     // updates every minute but a "total:N" event can be delivered late, while
@@ -116,18 +153,22 @@ final class UsageStore {
     func healImpossibleTotal(now: Date = Date()) -> Bool {
         let elapsed = Int(now.timeIntervalSince(Calendar.current.startOfDay(for: now)))
         guard elapsed > 0 else { return false }
-        let perApp = totalSecondsAllApps()
-        let combined = combinedSecondsToday()
-        guard perApp > elapsed || combined > elapsed else { return false }
+        // The check-and-reset must be atomic with concurrent threshold writes, or
+        // heal could wipe a legitimate increment landing at the same instant.
+        return withUsageLock {
+            let perApp = totalSecondsAllApps()
+            let combined = combinedSecondsToday()
+            guard perApp > elapsed || combined > elapsed else { return false }
 
-        EventLog.error(.monitor, "IMPOSSIBLE total healed — perApp=\(perApp / 60)m combined=\(combined / 60)m > elapsed=\(elapsed / 60)m; today reset (DeviceActivity replay corruption)")
-        var usage = loadTodayUsage()
-        usage.seconds = [:]
-        usage.hourly = Array(repeating: 0, count: 24)
-        save(usage)
-        setCombinedSecondsToday(0)
-        publishLiveTotal()
-        return true
+            EventLog.error(.monitor, "IMPOSSIBLE total healed — perApp=\(perApp / 60)m combined=\(combined / 60)m > elapsed=\(elapsed / 60)m; today reset (DeviceActivity replay corruption)")
+            var usage = loadTodayUsage()
+            usage.seconds = [:]
+            usage.hourly = Array(repeating: 0, count: 24)
+            writeUsage(usage)
+            setCombinedSecondsToday(0)
+            publishLiveTotal()
+            return true
+        }
     }
 
     // MARK: - The island's lifeline
@@ -179,11 +220,13 @@ final class UsageStore {
     // only the hourly attribution was.
     func addHourlySeconds(_ value: Int, endingAt end: Date = Date()) {
         guard value > 0 else { return }
-        var usage = loadTodayUsage()
-        for (hour, seconds) in Self.hourlySplit(seconds: value, endingAt: end) {
-            usage.addHourly(seconds, hour: hour)
+        withUsageLock {
+            var usage = loadTodayUsage()
+            for (hour, seconds) in Self.hourlySplit(seconds: value, endingAt: end) {
+                usage.addHourly(seconds, hour: hour)
+            }
+            writeUsage(usage)
         }
-        save(usage)
     }
 
     /// Splits `seconds` of usage ending at `end` across the clock hours it covers.
